@@ -1,0 +1,23 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.vs/
+*.DotSettings.user
+
+## Build outputs
+publish/
+out/
+
+## Environment / secrets
+.env
+*.env
+
+## Docker
+qdrant_storage/
+
+## IDE
+.idea/
+.vscode/
+*.swp
