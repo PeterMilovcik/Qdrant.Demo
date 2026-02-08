@@ -80,7 +80,8 @@ sealed class QdrantBootstrapper : BackgroundService
                 field_schema = fieldSchema
             };
 
-            var resp = await http.PutAsJsonAsync($"collections/{_collection}/index", body, ct);
+            var resp = await System.Net.Http.Json.HttpClientJsonExtensions
+                .PutAsJsonAsync(http, $"collections/{_collection}/index", body, ct);
 
             // If index already exists, Qdrant responds with 409; ignore.
             if (!resp.IsSuccessStatusCode && (int)resp.StatusCode != 409)

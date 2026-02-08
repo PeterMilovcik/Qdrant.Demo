@@ -25,6 +25,9 @@ services:
       # OpenAI key (passed from host env)
       OPENAI_API_KEY: ${OPENAI_API_KEY}
 
+      # Azure DevOps PAT (passed from host env)
+      AZURE_DEVOPS_PAT: ${AZURE_DEVOPS_PAT}
+
       # App settings
       QDRANT_COLLECTION: failed_test_results
       EMBEDDING_DIM: "1536"

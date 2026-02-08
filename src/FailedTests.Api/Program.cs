@@ -29,6 +29,16 @@ builder.Services.AddHostedService(sp =>
         collectionName,
         embeddingDim));
 
+// Shared indexing service (embed + upsert)
+builder.Services.AddSingleton<ITestResultIndexer>(sp =>
+    new TestResultIndexer(
+        sp.GetRequiredService<QdrantClient>(),
+        sp.GetRequiredService<EmbeddingClient>(),
+        collectionName));
+
+// Azure DevOps integration
+builder.Services.AddSingleton<IAzureDevOpsService, AzureDevOpsService>();
+
 var app = builder.Build();
 
 // ---- endpoints ----
@@ -46,6 +56,7 @@ app.MapGet("/", () => Results.Ok(new
 }));
 
 app.MapIndexEndpoints(collectionName);
+app.MapBuildIndexEndpoints(collectionName);
 app.MapSearchEndpoints(collectionName);
 
 app.Run();

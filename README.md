@@ -24,6 +24,7 @@
 Qdrant.Demo/
   .gitignore
   docker-compose.yml
+  Qdrant.Demo.sln
   README.md
   src/
     FailedTests.Api/
@@ -32,15 +33,27 @@ Qdrant.Demo/
       FailedTests.Api.csproj
       Program.cs                          # thin — config, DI, endpoint registration
       Endpoints/
+        BuildIndexEndpoints.cs            # POST /index/build (Azure DevOps integration)
         IndexEndpoints.cs                 # POST /index/test-result
         SearchEndpoints.cs                # POST /search/similar + /search/metadata
       Helpers/
         TextHelpers.cs                    # embedding text, normalisation, deterministic GUID
         QdrantPayloadHelpers.cs           # gRPC Value → CLR, scroll-filter builder
       Models/
+        AzureDevOpsModels.cs              # TestRunInfo, TestResultInfo, IndexBuildRequest/Response
         Requests.cs                       # all DTOs / request-response records
       Services/
+        IAzureDevOpsService.cs            # abstraction over Azure DevOps Test APIs
+        AzureDevOpsService.cs             # production impl (VssConnection + SDK)
+        ITestResultIndexer.cs             # shared embed + upsert abstraction
+        TestResultIndexer.cs              # production impl (OpenAI + Qdrant)
         QdrantBootstrapper.cs             # BackgroundService — collection + index setup
+  tests/
+    FailedTests.Api.Tests/
+      FailedTests.Api.Tests.csproj
+      TextHelpersTests.cs                 # 17 tests — text normalisation, deterministic GUID, etc.
+      TestResultIndexerTests.cs           # idempotency / signature logic tests
+      BuildIndexEndpointTests.cs          # orchestration tests with Moq
 ```
 
 ---
@@ -78,6 +91,9 @@ services:
 
       # OpenAI key (passed from host env)
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+
+      # Azure DevOps PAT (passed from host env)
+      AZURE_DEVOPS_PAT: ${AZURE_DEVOPS_PAT}
 
       # App settings
       QDRANT_COLLECTION: failed_test_results
@@ -120,10 +136,13 @@ Add the NuGet packages (pinning versions for reproducibility):
 cd FailedTests.Api
 dotnet add package Qdrant.Client --version 1.16.1
 dotnet add package OpenAI --version 2.8.0
+dotnet add package Microsoft.VisualStudio.Services.Client --version 19.225.2
+dotnet add package Microsoft.TeamFoundationServer.Client --version 19.225.2
 ```
 
 The Qdrant .NET SDK connects to Qdrant over **gRPC** (typical local default shown in their repo docs). ([GitHub][3])
 The [OpenAI .NET SDK](https://github.com/openai/openai-dotnet) provides the `EmbeddingClient` used for generating embeddings.
+The Azure DevOps SDK packages provide `VssConnection` + `TestManagementHttpClient` for pulling test results.
 
 ### FailedTests.Api.csproj (for reference)
 
@@ -139,6 +158,8 @@ After adding packages, your `.csproj` should look like this:
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.TeamFoundationServer.Client" Version="19.225.2" />
+    <PackageReference Include="Microsoft.VisualStudio.Services.Client" Version="19.225.2" />
     <PackageReference Include="Qdrant.Client" Version="1.16.1" />
     <PackageReference Include="OpenAI" Version="2.8.0" />
   </ItemGroup>
@@ -217,11 +238,17 @@ The code is organised following **.NET minimal API best practices**:
 | File | Responsibility |
 |------|---------------|
 | `Program.cs` | Thin entry point — configuration, DI, endpoint registration |
-| `Endpoints/IndexEndpoints.cs` | `POST /index/test-result` — upsert logic |
+| `Endpoints/IndexEndpoints.cs` | `POST /index/test-result` — upsert single result via `ITestResultIndexer` |
+| `Endpoints/BuildIndexEndpoints.cs` | `POST /index/build` — pull failures from Azure DevOps, index in bulk |
 | `Endpoints/SearchEndpoints.cs` | `POST /search/similar` + `POST /search/metadata` |
 | `Helpers/TextHelpers.cs` | Embedding text, normalisation, deterministic GUID, timestamps |
 | `Helpers/QdrantPayloadHelpers.cs` | gRPC `Value` → CLR conversion, scroll-filter builder |
 | `Models/Requests.cs` | All DTOs / request-response records |
+| `Models/AzureDevOpsModels.cs` | Domain records for AzDO integration (SDK-free) |
+| `Services/IAzureDevOpsService.cs` | Abstraction over Azure DevOps Test Management APIs |
+| `Services/AzureDevOpsService.cs` | Production implementation using the AzDO .NET SDK |
+| `Services/ITestResultIndexer.cs` | Shared embed + upsert abstraction |
+| `Services/TestResultIndexer.cs` | Production implementation (OpenAI + Qdrant) |
 | `Services/QdrantBootstrapper.cs` | `BackgroundService` — collection + payload-index bootstrap |
 
 > **⚠️ Qdrant.Client SDK gotchas (important for AI agents and humans alike):**
@@ -264,6 +291,16 @@ builder.Services.AddHostedService(sp =>
         collectionName,
         embeddingDim));
 
+// Shared indexing service (embed + upsert)
+builder.Services.AddSingleton<ITestResultIndexer>(sp =>
+    new TestResultIndexer(
+        sp.GetRequiredService<QdrantClient>(),
+        sp.GetRequiredService<EmbeddingClient>(),
+        collectionName));
+
+// Azure DevOps integration
+builder.Services.AddSingleton<IAzureDevOpsService, AzureDevOpsService>();
+
 var app = builder.Build();
 
 // ---- endpoints ----
@@ -281,6 +318,7 @@ app.MapGet("/", () => Results.Ok(new
 }));
 
 app.MapIndexEndpoints(collectionName);
+app.MapBuildIndexEndpoints(collectionName);
 app.MapSearchEndpoints(collectionName);
 
 app.Run();
@@ -290,11 +328,8 @@ app.Run();
 
 ```csharp
 using Microsoft.AspNetCore.Mvc;
-using Qdrant.Client;
-using Qdrant.Client.Grpc;
-using OpenAI.Embeddings;
 using FailedTests.Api.Models;
-using static FailedTests.Api.Helpers.TextHelpers;
+using FailedTests.Api.Services;
 
 namespace FailedTests.Api.Endpoints;
 
@@ -304,57 +339,112 @@ public static class IndexEndpoints
     {
         app.MapPost("/index/test-result", async (
             [FromBody] FailedTestEnvelope env,
-            QdrantClient qdrant,
-            EmbeddingClient embeddings) =>
+            ITestResultIndexer indexer,
+            CancellationToken ct) =>
         {
             try
             {
-                var testName = PickTestName(env.Result);
-
-                var pointId = DeterministicGuid(
-                    $"ado|{env.ProjectName}|{env.BuildId}|{env.TestRunId}|{env.Result.Id}");
-
-                var signatureId = DeterministicGuid(
-                    $"sig|{env.ProjectName}|{env.DefinitionName}|{testName}" +
-                    $"|{Normalize(env.Result.ErrorMessage)}|{NormalizeStack(env.Result.StackTrace)}");
-
-                var embeddingText = BuildEmbeddingText(env, testName);
-                var embedding = await embeddings.GenerateEmbeddingAsync(embeddingText);
-                var vector = embedding.Value.ToFloats().ToArray();
-
-                var timestampMs = ToUnixMs(
-                    env.Result.CompletedDate ?? env.Result.StartedDate ?? DateTime.UtcNow);
-
-                var point = new PointStruct
-                {
-                    Id = new PointId { Uuid = pointId.ToString("D") },
-                    Vectors = vector,
-                    Payload =
-                    {
-                        ["project_name"]        = env.ProjectName,
-                        ["definition_name"]     = env.DefinitionName,
-                        ["build_id"]            = env.BuildId,
-                        ["build_name"]          = env.BuildName,
-                        ["test_run_id"]         = env.TestRunId,
-                        ["test_result_id"]      = env.Result.Id,
-                        ["test_name"]           = testName,
-                        ["automated_test_name"] = env.Result.AutomatedTestName ?? "",
-                        ["computer_name"]       = env.Result.ComputerName ?? "",
-                        ["outcome"]             = env.Result.Outcome ?? "",
-                        ["timestamp_ms"]        = timestampMs,
-                        ["signature_id"]        = signatureId.ToString("D"),
-                        ["error_message"]       = env.Result.ErrorMessage ?? "",
-                        ["stack_trace"]         = env.Result.StackTrace ?? ""
-                    }
-                };
-
-                await qdrant.UpsertAsync(collectionName, new List<PointStruct> { point }, wait: true);
-                return Results.Ok(new IndexResponse(pointId.ToString("D"), signatureId.ToString("D")));
+                var response = await indexer.IndexTestResultAsync(env, ct);
+                return Results.Ok(response);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[index/test-result] Error: {ex.Message}");
                 return Results.Problem(detail: ex.Message, statusCode: 500, title: "Indexing failed");
+            }
+        });
+
+        return app;
+    }
+}
+```
+
+### `Endpoints/BuildIndexEndpoints.cs`
+
+```csharp
+using Microsoft.AspNetCore.Mvc;
+using FailedTests.Api.Models;
+using FailedTests.Api.Services;
+
+namespace FailedTests.Api.Endpoints;
+
+public static class BuildIndexEndpoints
+{
+    public static WebApplication MapBuildIndexEndpoints(
+        this WebApplication app, string collectionName)
+    {
+        app.MapPost("/index/build", async (
+            [FromBody] IndexBuildRequest req,
+            IAzureDevOpsService azdo,
+            ITestResultIndexer indexer,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var testRuns = await azdo.GetTestRunsForBuildAsync(
+                    req.CollectionUrl, req.ProjectName, req.BuildId, ct);
+
+                if (testRuns.Count == 0)
+                    return Results.Ok(new IndexBuildResponse(
+                        req.BuildId, 0, 0, 0, Array.Empty<string>()));
+
+                var definitionName = req.DefinitionName ?? $"Build-{req.BuildId}";
+                var totalFailed = 0;
+                var totalIndexed = 0;
+                var errors = new List<string>();
+
+                foreach (var run in testRuns)
+                {
+                    IReadOnlyList<TestResultInfo> failedResults;
+                    try
+                    {
+                        failedResults = await azdo.GetTestResultsAsync(
+                            req.CollectionUrl, req.ProjectName, run.Id,
+                            outcomeFilter: "Failed", ct: ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        errors.Add($"Run {run.Id}: {ex.Message}");
+                        continue;
+                    }
+
+                    totalFailed += failedResults.Count;
+
+                    foreach (var result in failedResults)
+                    {
+                        try
+                        {
+                            var envelope = new FailedTestEnvelope(
+                                ProjectName: req.ProjectName,
+                                DefinitionName: definitionName,
+                                BuildId: req.BuildId,
+                                BuildName: run.Name ?? $"Run-{run.Id}",
+                                TestRunId: run.Id,
+                                Result: new AzureDevOpsTestCaseResultDto(
+                                    result.Id, result.TestCaseTitle,
+                                    result.AutomatedTestName, result.ComputerName,
+                                    result.Outcome, result.ErrorMessage,
+                                    result.StackTrace, result.StartedDate,
+                                    result.CompletedDate));
+
+                            await indexer.IndexTestResultAsync(envelope, ct);
+                            totalIndexed++;
+                        }
+                        catch (Exception ex)
+                        {
+                            errors.Add($"Run {run.Id}, result {result.Id}: {ex.Message}");
+                        }
+                    }
+                }
+
+                return Results.Ok(new IndexBuildResponse(
+                    req.BuildId, testRuns.Count, totalFailed, totalIndexed, errors));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[index/build] Error: {ex.Message}");
+                return Results.Problem(detail: ex.Message, statusCode: 500,
+                    title: "Build indexing failed");
             }
         });
 
@@ -653,6 +743,67 @@ public record MetadataSearchRequest(
 );
 ```
 
+### `Models/AzureDevOpsModels.cs`
+
+SDK-free domain records for the Azure DevOps integration layer:
+
+```csharp
+namespace FailedTests.Api.Models;
+
+public record TestRunInfo(
+    int Id, string Name, string? BuildUri, string? State,
+    int TotalTests, int PassedTests, int UnresolvedTests,
+    DateTime? StartedDate, DateTime? CompletedDate);
+
+public record TestResultInfo(
+    int Id, string? TestCaseTitle, string? AutomatedTestName,
+    string? ComputerName, string? Outcome,
+    string? ErrorMessage, string? StackTrace,
+    DateTime? StartedDate, DateTime? CompletedDate,
+    int TestRunId, string? TestRunName);
+
+public record IndexBuildRequest(
+    string CollectionUrl, string ProjectName, int BuildId,
+    string? DefinitionName = null);
+
+public record IndexBuildResponse(
+    int BuildId, int TestRunsFound, int FailedResultsFound,
+    int PointsIndexed, IReadOnlyList<string> Errors);
+```
+
+### `Services/IAzureDevOpsService.cs` + `AzureDevOpsService.cs`
+
+The interface mirrors the Azure DevOps SDK's `TestManagementHttpClient` but returns our own domain types — so callers never depend on the SDK:
+
+```csharp
+public interface IAzureDevOpsService
+{
+    Task<IReadOnlyList<TestRunInfo>> GetTestRunsForBuildAsync(
+        string collectionUrl, string project, int buildId,
+        CancellationToken ct = default);
+
+    Task<IReadOnlyList<TestResultInfo>> GetTestResultsAsync(
+        string collectionUrl, string project, int testRunId,
+        string? outcomeFilter = null, CancellationToken ct = default);
+}
+```
+
+The production `AzureDevOpsService` reads `AZURE_DEVOPS_PAT` from the environment, creates a `VssConnection`, and calls `TestManagementHttpClient` methods. The mapping from SDK types (`TestRun`, `TestCaseResult`) to our domain records happens entirely within this class.
+
+### `Services/ITestResultIndexer.cs` + `TestResultIndexer.cs`
+
+Shared embed + upsert pipeline used by both `/index/test-result` and `/index/build`:
+
+```csharp
+public interface ITestResultIndexer
+{
+    Task<IndexResponse> IndexTestResultAsync(
+        FailedTestEnvelope envelope, CancellationToken ct = default);
+}
+```
+
+The `TestResultIndexer` implementation calls `TextHelpers` for deterministic IDs + embedding text, generates an OpenAI embedding, builds a `PointStruct`, and upserts into Qdrant.
+
 ### `Services/QdrantBootstrapper.cs`
 
 ```csharp
@@ -734,9 +885,11 @@ sealed class QdrantBootstrapper : BackgroundService
 
 What you got here:
 
-* **Write path:** `/index/test-result` upserts a point with vector + payload
+* **Write path:** `/index/test-result` upserts a single point with vector + payload
+* **Build indexing:** `/index/build` pulls all failed test results from an Azure DevOps build and indexes them in bulk
 * **Similarity search:** `/search/similar` uses Qdrant vector search with a **score threshold** (default 0.42) to return all meaningful matches, plus optional metadata filters
 * **Metadata-only search:** `/search/metadata` uses Qdrant scroll + filter + range
+* **Testable architecture:** `IAzureDevOpsService` and `ITestResultIndexer` interfaces with NUnit + Moq tests
 * **Error handling:** All endpoints return structured `ProblemDetails` on failure (instead of bare 500s)
 
 ---
@@ -752,6 +905,18 @@ export OPENAI_API_KEY="sk-..."
 # Windows PowerShell
 $env:OPENAI_API_KEY = "sk-..."
 ```
+
+If you plan to use the `/index/build` endpoint (Azure DevOps integration), also export your PAT:
+
+```bash
+# Linux / macOS
+export AZURE_DEVOPS_PAT="your-pat-here"
+
+# Windows PowerShell
+$env:AZURE_DEVOPS_PAT = "your-pat-here"
+```
+
+> The PAT needs **Test Management → Read** scope on your Azure DevOps organization.
 
 Then from `./Qdrant.Demo`:
 
@@ -810,7 +975,36 @@ Expected response:
 
 Re-indexing the same result returns the **same `pointId`** (idempotent upsert).
 
-### 9.2 Similarity search (optionally filter by project/definition)
+### 9.2 Index all failed tests from an Azure DevOps build
+
+This endpoint pulls test runs and failed results directly from Azure DevOps, then indexes them in bulk:
+
+```bash
+curl -X POST http://localhost:8080/index/build \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collectionUrl": "https://dev.azure.com/your-org",
+    "projectName": "MyProject",
+    "buildId": 12345,
+    "definitionName": "CI_Main"
+  }'
+```
+
+Expected response:
+
+```json
+{
+  "buildId": 12345,
+  "testRunsFound": 3,
+  "failedResultsFound": 7,
+  "pointsIndexed": 7,
+  "errors": []
+}
+```
+
+> **Requires** `AZURE_DEVOPS_PAT` environment variable with a PAT that has **Test Management → Read** scope.
+
+### 9.3 Similarity search (optionally filter by project/definition)
 
 ```bash
 curl -X POST http://localhost:8080/search/similar \
@@ -840,7 +1034,7 @@ Expected response — an array ranked by cosine similarity score:
 ]
 ```
 
-### 9.3 Metadata-only search (no vectors)
+### 9.4 Metadata-only search (no vectors)
 
 ```bash
 curl -X POST http://localhost:8080/search/metadata \
@@ -898,16 +1092,35 @@ This tutorial uses OpenAI's `text-embedding-3-small` (1 536 dims). To use a diff
 
 ---
 
-## 12) Troubleshooting
+## 12) Unit tests
+
+The test project uses **NUnit 4** + **Moq** and lives under `tests/FailedTests.Api.Tests/`.
+
+```bash
+dotnet test --verbosity normal
+```
+
+| Test class | What it covers |
+|-----------|---------------|
+| `TextHelpersTests` (17 tests) | `PickTestName`, `DeterministicGuid`, `Normalize`, `NormalizeStack`, `ToUnixMs`, `BuildEmbeddingText` |
+| `TestResultIndexerTests` (2 tests) | Deterministic point-id / signature-id stability; same error across different builds shares a signature |
+| `BuildIndexEndpointTests` (5 tests) | Orchestration logic with mocked `IAzureDevOpsService` + `ITestResultIndexer`; partial-failure resilience |
+
+---
+
+## 13) Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
 | `OPENAI_API_KEY is missing` at startup | Env var not exported before `docker compose up` | Run `export OPENAI_API_KEY="sk-..."` (Linux/Mac) or `$env:OPENAI_API_KEY = "sk-..."` (PowerShell) first |
+| `AZURE_DEVOPS_PAT` not set | Env var missing; `/index/build` will fail | Export the PAT: `$env:AZURE_DEVOPS_PAT = "your-pat"` (PowerShell) |
 | `docker compose up` hangs or qdrant never becomes healthy | Docker Desktop not running | Start Docker Desktop and wait for the engine to be ready |
 | `[bootstrap] attempt N failed: ...` repeating 30 times | Qdrant container didn't start in time | Check `docker compose logs qdrant` for errors; ensure port 6333/6334 are free |
 | `CS0104: 'Range' is an ambiguous reference` | `System.Range` vs `Qdrant.Client.Grpc.Range` | Use fully qualified `Qdrant.Client.Grpc.Range` |
+| `CS0121: ambiguous PutAsJsonAsync` | AzDO SDK brings in a conflicting extension method | Use `System.Net.Http.Json.HttpClientJsonExtensions.PutAsJsonAsync(...)` |
 | Similarity search returns `[]` | No points indexed yet, or filter too restrictive | Index a point first, try searching without filters |
 | 500 error with `AuthenticationException` from OpenAI | Invalid or expired API key | Verify your key at [platform.openai.com](https://platform.openai.com/api-keys) |
+| `/index/build` returns 401 from Azure DevOps | PAT expired or insufficient scope | Generate a new PAT with **Test Management → Read** scope |
 
 ---
 
