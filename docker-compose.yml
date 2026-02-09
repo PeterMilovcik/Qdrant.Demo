@@ -10,9 +10,9 @@ services:
     networks:
       - backend
 
-  failedtests-api:
+  demo-api:
     build:
-      context: ./src/FailedTests.Api
+      context: ./src/Qdrant.Demo.Api
       dockerfile: Dockerfile
     environment:
       ASPNETCORE_URLS: http://+:8080
@@ -25,12 +25,15 @@ services:
       # OpenAI key (passed from host env)
       OPENAI_API_KEY: ${OPENAI_API_KEY}
 
-      # Azure DevOps PAT (passed from host env)
-      AZURE_DEVOPS_PAT: ${AZURE_DEVOPS_PAT}
-
       # App settings
-      QDRANT_COLLECTION: failed_test_results
+      QDRANT_COLLECTION: documents
       EMBEDDING_DIM: "1536"
+
+      # OpenAI embedding model
+      OPENAI_EMBEDDING_MODEL: text-embedding-3-small
+
+      # OpenAI chat model for POST /chat (cheapest current model)
+      OPENAI_CHAT_MODEL: gpt-4.1-nano
     depends_on:
       - qdrant
     ports:

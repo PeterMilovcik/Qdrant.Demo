@@ -1,9 +1,81 @@
-﻿Below is a full tutorial that runs Qdrant **without a Qdrant API key**, inside a **Docker Compose private network**, with a **.NET 8 Web API** that uses **OpenAI Embeddings** and can:
+﻿# Qdrant.Demo — RAG Workshop Template
 
-* **Upsert** (write) embeddings + payload (metadata)
-* **Vector search** with optional metadata filters
-* **Metadata-only search** (no vector) using Qdrant's scroll API
-* Use a **deterministic UUID point-id** so reprocessing the same Azure DevOps test result is idempotent
+A hands-on **.NET 10 + Qdrant + OpenAI** workshop template that teaches how to build a complete **Retrieval-Augmented Generation (RAG)** solution from scratch. Index any text with metadata, search it three different ways, and **chat with your documents** using OpenAI.
+
+---
+
+## What is RAG?
+
+**Retrieval-Augmented Generation** is a pattern where you:
+
+1. **Index** — turn your documents into vectors (embeddings) and store them in a vector database.
+2. **Retrieve** — given a user query, embed it and find the most similar documents.
+3. **Generate** — feed the retrieved documents into an LLM to produce a grounded answer.
+
+This workshop implements **all three steps**. You'll learn how embeddings work, how Qdrant stores and searches vectors, how to combine vector similarity with metadata filters, and how to generate LLM-powered answers grounded in your own data.
+
+```
+┌──────────────┐      embed       ┌───────────────┐
+│  Your Text   │  ──────────────► │  Qdrant       │
+│  + metadata  │                  │  (vectors +   │
+└──────────────┘                  │   payload)    │
+                                  └───────┬───────┘
+┌──────────────┐      embed + search      │
+│  User Query  │  ──────────────────────► │
+└──────────────┘                          ▼
+                                  ┌───────────────┐
+                                  │  Ranked       │
+                                  │  Results      │──────┐
+                                  └───────────────┘      │  context
+                                                         ▼
+                                                  ┌──────────────┐
+                                                  │  OpenAI LLM  │
+                                                  │  (chat)      │
+                                                  └──────┬───────┘
+                                                         ▼
+                                                  ┌──────────────┐
+                                                  │  Grounded    │
+                                                  │  Answer      │
+                                                  └──────────────┘
+```
+
+---
+
+## What you'll learn
+
+By the end of this workshop you will understand:
+
+1. **What embeddings are** — how text is converted into numerical vectors that capture meaning.
+2. **How vector similarity search works** — finding the closest vectors using cosine similarity.
+3. **How Qdrant stores and queries data** — collections, points, payloads, and filters.
+4. **The difference between filterable and informational metadata** — tags vs properties.
+5. **How to ground LLM answers in your own data** — the RAG pattern that prevents hallucination.
+6. **How to build a production-shaped .NET API** — minimal APIs, dependency injection, service abstractions.
+
+---
+
+## Glossary
+
+| Term | Definition |
+|------|------------|
+| **Embedding** | A fixed-length array of floating-point numbers (a _vector_) that represents the semantic meaning of text. Similar texts produce similar vectors. |
+| **Vector** | A list of numbers (e.g. 1 536 floats). In this context, it is the embedding of a piece of text. |
+| **Cosine similarity** | A measure of how similar two vectors are, ranging from 0 (unrelated) to 1 (identical meaning). |
+| **Collection** | A Qdrant container that holds vectors of the same dimensionality — analogous to a database table. |
+| **Point** | A single entry in a Qdrant collection: a unique id + a vector + an optional payload (metadata). |
+| **Payload** | Arbitrary key/value metadata stored alongside a vector in Qdrant. Can be indexed for filtering. |
+| **Upsert** | Insert-or-update: if the point-id already exists the point is overwritten, otherwise it is created. |
+| **Grounding** | Providing an LLM with factual context (retrieved documents) so it answers based on evidence, not imagination. |
+| **Hallucination** | When an LLM generates plausible-sounding but factually incorrect information. RAG reduces this. |
+| **System prompt** | An instruction message sent to the LLM before the user's question, controlling its behaviour and constraints. |
+
+| Component | Role |
+|-----------|------|
+| **Qdrant** (Docker) | Open-source vector database — stores embeddings + payload metadata |
+| **.NET 10 Web API** | Minimal API that exposes indexing, search, and chat endpoints |
+| **OpenAI Embeddings** | `text-embedding-3-small` model (1 536 dimensions) converts text → vectors |
+| **OpenAI Chat** | `gpt-4.1-nano` model (configurable) generates answers grounded in retrieved documents |
+| **Docker Compose** | Runs both services in a private network |
 
 ---
 
@@ -12,13 +84,15 @@
 | Tool | Version | Why |
 |------|---------|-----|
 | [Docker Desktop](https://www.docker.com/products/docker-desktop/) | 4.x+ | Runs Qdrant + API containers |
-| [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) | 8.0+ | Only needed if you want to build/debug locally outside Docker |
-| [OpenAI API key](https://platform.openai.com/api-keys) | — | Used for `text-embedding-3-small` embeddings (1 536 dims) |
+| [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | 10.0+ | Build/debug locally (optional — Docker handles it too) |
+| [OpenAI API key](https://platform.openai.com/api-keys) | — | Used for `text-embedding-3-small` embeddings |
 | `curl` or similar HTTP client | — | To test the API endpoints |
+
+> **💰 Cost note:** A full workshop run with ~10 documents costs **< $0.01** in OpenAI API usage (embedding + chat). You will not incur meaningful charges.
 
 ---
 
-## 1) Folder layout
+## Folder layout
 
 ```
 Qdrant.Demo/
@@ -27,40 +101,106 @@ Qdrant.Demo/
   Qdrant.Demo.sln
   README.md
   src/
-    FailedTests.Api/
+    Qdrant.Demo.Api/
       .dockerignore
       Dockerfile
-      FailedTests.Api.csproj
-      Program.cs                          # thin — config, DI, endpoint registration
+      Qdrant.Demo.Api.csproj
+      Program.cs
+      appsettings.json
       Endpoints/
-        BuildIndexEndpoints.cs            # POST /index/build (Azure DevOps integration)
-        IndexEndpoints.cs                 # POST /index/test-result
-        SearchEndpoints.cs                # POST /search/similar + /search/metadata
-      Helpers/
-        TextHelpers.cs                    # embedding text, normalisation, deterministic GUID
-        QdrantPayloadHelpers.cs           # gRPC Value → CLR, scroll-filter builder
+        ChatEndpoints.cs         # POST /chat (retrieve + generate)
+        DocumentEndpoints.cs     # POST /documents + /documents/batch
+        SearchEndpoints.cs       # POST /search/topk, /search/threshold, /search/metadata
+      Extensions/
+        StringExtensions.cs      # ToDeterministicGuid()
+        DateTimeExtensions.cs    # ToUnixMs()
+        QdrantPayloadExtensions.cs  # ToDictionary(), ToFormattedHits()
       Models/
-        AzureDevOpsModels.cs              # TestRunInfo, TestResultInfo, IndexBuildRequest/Response
-        Requests.cs                       # all DTOs / request-response records
+        PayloadKeys.cs           # shared Qdrant payload field-name constants
+        Requests.cs              # all DTOs — upsert, search, chat, and SearchHit
       Services/
-        IAzureDevOpsService.cs            # abstraction over Azure DevOps Test APIs
-        AzureDevOpsService.cs             # production impl (VssConnection + SDK)
-        ITestResultIndexer.cs             # shared embed + upsert abstraction
-        TestResultIndexer.cs              # production impl (OpenAI + Qdrant)
-        QdrantBootstrapper.cs             # BackgroundService — collection + index setup
+        IEmbeddingService.cs     # text → vector abstraction
+        EmbeddingService.cs      # OpenAI implementation
+        IQdrantFilterFactory.cs  # tag filter builder abstraction
+        QdrantFilterFactory.cs   # gRPC + REST filter implementations
+        IDocumentIndexer.cs      # embed + upsert abstraction
+        DocumentIndexer.cs       # production implementation
+        QdrantBootstrapper.cs    # BackgroundService — collection bootstrap
   tests/
-    FailedTests.Api.Tests/
-      FailedTests.Api.Tests.csproj
-      TextHelpersTests.cs                 # 17 tests — text normalisation, deterministic GUID, etc.
-      TestResultIndexerTests.cs           # idempotency / signature logic tests
-      BuildIndexEndpointTests.cs          # orchestration tests with Moq
+    Qdrant.Demo.Api.Tests/
+      Qdrant.Demo.Api.Tests.csproj
+      StringExtensionsTests.cs
+      DateTimeExtensionsTests.cs
+      DocumentIndexerTests.cs
+      QdrantFilterFactoryTests.cs
+      ChatTests.cs
 ```
 
 ---
 
-## 2) docker-compose.yml (no API key, private network)
+## Key concept: Tags vs Properties
 
-Qdrant's REST port (6333) is published to the host so you can browse the **Qdrant Dashboard** at `http://localhost:6333/dashboard` during development. gRPC (6334) stays internal — only the API container needs it.
+When you index a document, you provide metadata in two explicit categories:
+
+### Tags — indexed, filterable
+
+```json
+"tags": { "category": "science", "author": "Jane", "language": "en" }
+```
+
+**Tags** are stored in the Qdrant payload with a `tag.` prefix (e.g. `tag.category`) and are **indexed** as Qdrant `keyword` fields. You can use them in **search filters** to narrow results — for example, *"find similar documents where category = science."*
+
+**Use tags for:** any attribute you might want to **filter by** when searching:
+
+| Example tag key | Use case |
+|----------------|----------|
+| `category` | Filter by topic (science, history, engineering…) |
+| `author` | Find documents by a specific author |
+| `language` | Restrict results to a language (`en`, `sk`, `de`…) |
+| `source` | Where the document came from (wikipedia, internal-wiki, arxiv…) |
+| `department` | Organisational unit that owns the content |
+| `document_type` | Article, FAQ, tutorial, report… |
+| `status` | Published, draft, archived… |
+| `priority` | High, medium, low |
+
+### Properties — informational, not filterable
+
+```json
+"properties": { "source_url": "https://...", "page": "42", "note": "intro chapter" }
+```
+
+**Properties** are stored in the Qdrant payload with a `prop.` prefix (e.g. `prop.source_url`). They are **not indexed** — they are returned alongside search results so the consumer has context, but they **cannot be used in filters**.
+
+**Use properties for:** any supplementary information a consumer needs when reading results:
+
+| Example property key | Use case |
+|---------------------|----------|
+| `source_url` | Link back to the original document |
+| `page` | Page number within a larger document |
+| `summary` | Short summary or excerpt |
+| `created_date` | When the document was written |
+| `last_updated` | When the document was last modified |
+| `note` | Free-form annotation |
+| `image_url` | Associated image or thumbnail |
+| `word_count` | Length of the original document |
+
+### Why the distinction?
+
+| Aspect | Tags | Properties |
+|--------|------|------------|
+| Stored in Qdrant payload | ✅ as `tag.{key}` | ✅ as `prop.{key}` |
+| Indexed (payload index) | ✅ keyword index | ❌ no index |
+| Usable in search filters | ✅ | ❌ |
+| Returned with search results | ✅ | ✅ |
+| Performance impact | Indexes use memory | None |
+
+> **Workshop tip:** To make tag filtering fast, create a Qdrant payload index for each tag field via the **Qdrant Dashboard** at `http://localhost:6333/dashboard` → select your collection → "Payload Index" → add a `keyword` index on `tag.category` (or whichever fields you use). This is a great hands-on exercise!
+
+---
+
+## docker-compose.yml
+
+Qdrant's REST port (6333) is published to the host so you can browse the **Qdrant Dashboard** at `http://localhost:6333/dashboard`. gRPC (6334) stays internal — only the API container uses it.
 
 > ⚠️ **Local dev only.** Port 6333 is published without an API key. In production, either keep Qdrant on an internal network or configure a [Qdrant API key](https://qdrant.tech/documentation/guides/security/).
 
@@ -71,37 +211,30 @@ services:
     volumes:
       - qdrant_storage:/qdrant/storage
     expose:
-      - "6334" # gRPC (internal only)
+      - "6334"
     ports:
-      - "6333:6333" # REST + dashboard (accessible at http://localhost:6333/dashboard)
+      - "6333:6333"
     networks:
       - backend
 
-  failedtests-api:
+  demo-api:
     build:
-      context: ./src/FailedTests.Api
+      context: ./src/Qdrant.Demo.Api
       dockerfile: Dockerfile
     environment:
       ASPNETCORE_URLS: http://+:8080
-
-      # Qdrant endpoints inside the compose network
       QDRANT_HOST: qdrant
       QDRANT_HTTP_PORT: "6333"
       QDRANT_GRPC_PORT: "6334"
-
-      # OpenAI key (passed from host env)
       OPENAI_API_KEY: ${OPENAI_API_KEY}
-
-      # Azure DevOps PAT (passed from host env)
-      AZURE_DEVOPS_PAT: ${AZURE_DEVOPS_PAT}
-
-      # App settings
-      QDRANT_COLLECTION: failed_test_results
+      QDRANT_COLLECTION: documents
       EMBEDDING_DIM: "1536"
+      OPENAI_EMBEDDING_MODEL: text-embedding-3-small
+      OPENAI_CHAT_MODEL: gpt-4.1-nano
     depends_on:
       - qdrant
     ports:
-      - "8080:8080"  # expose ONLY the API to your machine
+      - "8080:8080"
     networks:
       - backend
 
@@ -113,950 +246,205 @@ networks:
     driver: bridge
 ```
 
-Notes:
-
-* Qdrant uses **REST on 6333** (also dashboard at `/dashboard`) and **gRPC on 6334**. ([qdrant.tech][1])
-* The Docker image tag above is a pinned version for reproducibility. ([GitHub][2])
-* `depends_on` ensures Docker starts Qdrant before the API. The `QdrantBootstrapper` hosted service handles retries if Qdrant is still initialising when the API container starts.
-* Browse **http://localhost:6333/dashboard** to inspect collections, points, and run ad-hoc queries.
-
 ---
 
-## 3) Create the .NET 8 API project
+## Application code
 
-From `./Qdrant.Demo/src`:
-
-```bash
-dotnet new webapi -n FailedTests.Api
-```
-
-Add the NuGet packages (pinning versions for reproducibility):
-
-```bash
-cd FailedTests.Api
-dotnet add package Qdrant.Client --version 1.16.1
-dotnet add package OpenAI --version 2.8.0
-dotnet add package Microsoft.VisualStudio.Services.Client --version 19.225.2
-dotnet add package Microsoft.TeamFoundationServer.Client --version 19.225.2
-```
-
-The Qdrant .NET SDK connects to Qdrant over **gRPC** (typical local default shown in their repo docs). ([GitHub][3])
-The [OpenAI .NET SDK](https://github.com/openai/openai-dotnet) provides the `EmbeddingClient` used for generating embeddings.
-The Azure DevOps SDK packages provide `VssConnection` + `TestManagementHttpClient` for pulling test results.
-
-### FailedTests.Api.csproj (for reference)
-
-After adding packages, your `.csproj` should look like this:
-
-```xml
-<Project Sdk="Microsoft.NET.Sdk.Web">
-
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Microsoft.TeamFoundationServer.Client" Version="19.225.2" />
-    <PackageReference Include="Microsoft.VisualStudio.Services.Client" Version="19.225.2" />
-    <PackageReference Include="Qdrant.Client" Version="1.16.1" />
-    <PackageReference Include="OpenAI" Version="2.8.0" />
-  </ItemGroup>
-
-</Project>
-```
-
----
-
-## 4) Dockerfile + .dockerignore
-
-### `./src/FailedTests.Api/Dockerfile`
-
-```dockerfile
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /src
-COPY . .
-RUN dotnet publish -c Release -o /app
-
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
-WORKDIR /app
-COPY --from=build /app .
-EXPOSE 8080
-ENTRYPOINT ["dotnet", "FailedTests.Api.dll"]
-```
-
-### `./src/FailedTests.Api/.dockerignore`
-
-Keeps `bin/` and `obj/` out of the Docker build context (faster builds, smaller images):
-
-```
-bin/
-obj/
-.git
-.gitignore
-*.md
-*.sln
-.vs/
-.vscode/
-.idea/
-```
-
----
-
-## 5) Deterministic point-id strategy (why + how)
-
-Qdrant point IDs can be **either uint64 or UUID**. ([qdrant.tech][4])
-Qdrant "upsert" will overwrite the same point ID (that's exactly what we want for idempotent reprocessing). ([api.qdrant.tech][5])
-
-### Strategy used in this tutorial
-
-Use a deterministic UUID from the stable Azure DevOps identity tuple:
-
-```
-pointId = UUID( "ado|{project}|{buildId}|{testRunId}|{testResultId}" )
-```
-
-So if your ingestion job replays the same run/result again, you update the same point instead of inserting duplicates.
-
-> Optional (recommended): also compute a separate `signature_id` in payload (deterministic hash of normalized error+stack) to group similar failures across runs. You'll see it in code.
-
----
-
-## 6) Azure DevOps TestCaseResult DTO (shape aligned to SDK)
-
-In Azure DevOps .NET SDK, `TestCaseResult` includes fields like `Id`, `ComputerName`, `ErrorMessage`, `StackTrace`, `TestCaseTitle`, `AutomatedTestName`, etc. ([learn.microsoft.com][6])
-
-In your Web API you'll usually map the SDK object into your own DTO/envelope anyway (versioning, smaller payloads, etc.). We'll do that.
-
----
-
-## 7) Application code (multi-file layout)
-
-The code is organised following **.NET minimal API best practices**:
+The code follows **.NET minimal API best practices** — thin entry point, extension methods for endpoint registration, separated services and models:
 
 | File | Responsibility |
 |------|---------------|
-| `Program.cs` | Thin entry point — configuration, DI, endpoint registration |
-| `Endpoints/IndexEndpoints.cs` | `POST /index/test-result` — upsert single result via `ITestResultIndexer` |
-| `Endpoints/BuildIndexEndpoints.cs` | `POST /index/build` — pull failures from Azure DevOps, index in bulk |
-| `Endpoints/SearchEndpoints.cs` | `POST /search/similar` + `POST /search/metadata` |
-| `Helpers/TextHelpers.cs` | Embedding text, normalisation, deterministic GUID, timestamps |
-| `Helpers/QdrantPayloadHelpers.cs` | gRPC `Value` → CLR conversion, scroll-filter builder |
-| `Models/Requests.cs` | All DTOs / request-response records |
-| `Models/AzureDevOpsModels.cs` | Domain records for AzDO integration (SDK-free) |
-| `Services/IAzureDevOpsService.cs` | Abstraction over Azure DevOps Test Management APIs |
-| `Services/AzureDevOpsService.cs` | Production implementation using the AzDO .NET SDK |
-| `Services/ITestResultIndexer.cs` | Shared embed + upsert abstraction |
-| `Services/TestResultIndexer.cs` | Production implementation (OpenAI + Qdrant) |
-| `Services/QdrantBootstrapper.cs` | `BackgroundService` — collection + payload-index bootstrap |
+| `Program.cs` | Config, DI, endpoint registration, Swagger |
+| `Endpoints/ChatEndpoints.cs` | `POST /chat` — retrieve + generate (full RAG) |
+| `Endpoints/DocumentEndpoints.cs` | `POST /documents` + `POST /documents/batch` |
+| `Endpoints/SearchEndpoints.cs` | `POST /search/topk` + `/search/threshold` + `/search/metadata` |
+| `Extensions/StringExtensions.cs` | `ToDeterministicGuid()` extension on `string` |
+| `Extensions/DateTimeExtensions.cs` | `ToUnixMs()` extension on `DateTime` |
+| `Extensions/QdrantPayloadExtensions.cs` | `ToDictionary()` + `ToFormattedHits()` on Qdrant types |
+| `Models/PayloadKeys.cs` | Shared constants for Qdrant payload field names |
+| `Models/Requests.cs` | All DTOs — upsert, search, chat, and `SearchHit` |
+| `Services/IEmbeddingService.cs` + `EmbeddingService.cs` | Text → vector embedding abstraction |
+| `Services/IQdrantFilterFactory.cs` + `QdrantFilterFactory.cs` | Tag → Qdrant filter (gRPC + REST) |
+| `Services/IDocumentIndexer.cs` + `DocumentIndexer.cs` | Embed + upsert abstraction |
+| `Services/QdrantBootstrapper.cs` | `BackgroundService` — creates collection at startup with retries |
 
-> **⚠️ Qdrant.Client SDK gotchas (important for AI agents and humans alike):**
+> **⚠️ Qdrant.Client SDK gotchas:**
 >
-> 1. **`Range` type ambiguity**: `Range` in Qdrant.Client collides with `System.Range`. Always fully qualify as `Qdrant.Client.Grpc.Range`. The `Gte`/`Lte` properties are `double` (not `double?`), so use conditional assignment.
+> 1. **`Range` type ambiguity**: `Range` in Qdrant.Client collides with `System.Range`. Always fully qualify as `Qdrant.Client.Grpc.Range`.
 > 2. **`SearchAsync` parameters**: Use `payloadSelector: true` (not `withPayload`). The `limit` parameter is `ulong` (not `uint`). Use `scoreThreshold: float?` to cut off low-similarity noise. The `filter` parameter expects `Filter?`, not `Condition?` — wrap conditions: `new Filter { Must = { condition } }`.
 > 3. **Payload `Value` type**: Qdrant.Client uses `Qdrant.Client.Grpc.Value` (not `Google.Protobuf.WellKnownTypes.Value`). Use `KindOneofCase.DoubleValue` and `IntegerValue` (there is no `NumberValue`).
 
-### `Program.cs` — thin entry point
-
-```csharp
-using Qdrant.Client;
-using OpenAI.Embeddings;
-using FailedTests.Api.Endpoints;
-using FailedTests.Api.Services;
-
-var builder = WebApplication.CreateBuilder(args);
-
-// ---- configuration from environment (docker-compose) ----
-var qdrantHost     = Environment.GetEnvironmentVariable("QDRANT_HOST")       ?? "qdrant";
-var qdrantHttpPort = int.Parse(Environment.GetEnvironmentVariable("QDRANT_HTTP_PORT") ?? "6333");
-var qdrantGrpcPort = int.Parse(Environment.GetEnvironmentVariable("QDRANT_GRPC_PORT") ?? "6334");
-var collectionName = Environment.GetEnvironmentVariable("QDRANT_COLLECTION") ?? "failed_test_results";
-var embeddingDim   = int.Parse(Environment.GetEnvironmentVariable("EMBEDDING_DIM")    ?? "1536");
-var openAiKey      = Environment.GetEnvironmentVariable("OPENAI_API_KEY")
-    ?? throw new InvalidOperationException("OPENAI_API_KEY is missing");
-
-// ---- service registration ----
-builder.Services.AddSingleton(_ => new QdrantClient(qdrantHost, qdrantGrpcPort));
-builder.Services.AddSingleton(_ => new EmbeddingClient("text-embedding-3-small", openAiKey));
-builder.Services.AddHttpClient("qdrant-http", http =>
-{
-    http.BaseAddress = new Uri($"http://{qdrantHost}:{qdrantHttpPort}/");
-});
-
-builder.Services.AddHostedService(sp =>
-    new QdrantBootstrapper(
-        sp.GetRequiredService<QdrantClient>(),
-        sp.GetRequiredService<IHttpClientFactory>(),
-        collectionName,
-        embeddingDim));
-
-// Shared indexing service (embed + upsert)
-builder.Services.AddSingleton<ITestResultIndexer>(sp =>
-    new TestResultIndexer(
-        sp.GetRequiredService<QdrantClient>(),
-        sp.GetRequiredService<EmbeddingClient>(),
-        collectionName));
-
-// Azure DevOps integration
-builder.Services.AddSingleton<IAzureDevOpsService, AzureDevOpsService>();
-
-var app = builder.Build();
-
-// ---- endpoints ----
-app.MapGet("/", () => Results.Ok(new
-{
-    service = "FailedTests.Api",
-    qdrant = new
-    {
-        host = qdrantHost,
-        http = qdrantHttpPort,
-        grpc = qdrantGrpcPort,
-        collection = collectionName,
-        embeddingDim
-    }
-}));
-
-app.MapIndexEndpoints(collectionName);
-app.MapBuildIndexEndpoints(collectionName);
-app.MapSearchEndpoints(collectionName);
-
-app.Run();
-```
-
-### `Endpoints/IndexEndpoints.cs`
-
-```csharp
-using Microsoft.AspNetCore.Mvc;
-using FailedTests.Api.Models;
-using FailedTests.Api.Services;
-
-namespace FailedTests.Api.Endpoints;
-
-public static class IndexEndpoints
-{
-    public static WebApplication MapIndexEndpoints(this WebApplication app, string collectionName)
-    {
-        app.MapPost("/index/test-result", async (
-            [FromBody] FailedTestEnvelope env,
-            ITestResultIndexer indexer,
-            CancellationToken ct) =>
-        {
-            try
-            {
-                var response = await indexer.IndexTestResultAsync(env, ct);
-                return Results.Ok(response);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[index/test-result] Error: {ex.Message}");
-                return Results.Problem(detail: ex.Message, statusCode: 500, title: "Indexing failed");
-            }
-        });
-
-        return app;
-    }
-}
-```
-
-### `Endpoints/BuildIndexEndpoints.cs`
-
-```csharp
-using Microsoft.AspNetCore.Mvc;
-using FailedTests.Api.Models;
-using FailedTests.Api.Services;
-
-namespace FailedTests.Api.Endpoints;
-
-public static class BuildIndexEndpoints
-{
-    public static WebApplication MapBuildIndexEndpoints(
-        this WebApplication app, string collectionName)
-    {
-        app.MapPost("/index/build", async (
-            [FromBody] IndexBuildRequest req,
-            IAzureDevOpsService azdo,
-            ITestResultIndexer indexer,
-            CancellationToken ct) =>
-        {
-            try
-            {
-                var testRuns = await azdo.GetTestRunsForBuildAsync(
-                    req.CollectionUrl, req.ProjectName, req.BuildId, ct);
-
-                if (testRuns.Count == 0)
-                    return Results.Ok(new IndexBuildResponse(
-                        req.BuildId, 0, 0, 0, Array.Empty<string>()));
-
-                var definitionName = req.DefinitionName ?? $"Build-{req.BuildId}";
-                var totalFailed = 0;
-                var totalIndexed = 0;
-                var errors = new List<string>();
-
-                foreach (var run in testRuns)
-                {
-                    IReadOnlyList<TestResultInfo> failedResults;
-                    try
-                    {
-                        failedResults = await azdo.GetTestResultsAsync(
-                            req.CollectionUrl, req.ProjectName, run.Id,
-                            outcomeFilter: "Failed", ct: ct);
-                    }
-                    catch (Exception ex)
-                    {
-                        errors.Add($"Run {run.Id}: {ex.Message}");
-                        continue;
-                    }
-
-                    totalFailed += failedResults.Count;
-
-                    foreach (var result in failedResults)
-                    {
-                        try
-                        {
-                            var envelope = new FailedTestEnvelope(
-                                ProjectName: req.ProjectName,
-                                DefinitionName: definitionName,
-                                BuildId: req.BuildId,
-                                BuildName: run.Name ?? $"Run-{run.Id}",
-                                TestRunId: run.Id,
-                                Result: new AzureDevOpsTestCaseResultDto(
-                                    result.Id, result.TestCaseTitle,
-                                    result.AutomatedTestName, result.ComputerName,
-                                    result.Outcome, result.ErrorMessage,
-                                    result.StackTrace, result.StartedDate,
-                                    result.CompletedDate));
-
-                            await indexer.IndexTestResultAsync(envelope, ct);
-                            totalIndexed++;
-                        }
-                        catch (Exception ex)
-                        {
-                            errors.Add($"Run {run.Id}, result {result.Id}: {ex.Message}");
-                        }
-                    }
-                }
-
-                return Results.Ok(new IndexBuildResponse(
-                    req.BuildId, testRuns.Count, totalFailed, totalIndexed, errors));
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[index/build] Error: {ex.Message}");
-                return Results.Problem(detail: ex.Message, statusCode: 500,
-                    title: "Build indexing failed");
-            }
-        });
-
-        return app;
-    }
-}
-```
-
-### `Endpoints/SearchEndpoints.cs`
-
-```csharp
-using System.Text.Json;
-using Microsoft.AspNetCore.Mvc;
-using Qdrant.Client;
-using Qdrant.Client.Grpc;
-using OpenAI.Embeddings;
-using FailedTests.Api.Models;
-using static Qdrant.Client.Grpc.Conditions;
-using static FailedTests.Api.Helpers.QdrantPayloadHelpers;
-
-namespace FailedTests.Api.Endpoints;
-
-public static class SearchEndpoints
-{
-    public static WebApplication MapSearchEndpoints(this WebApplication app, string collectionName)
-    {
-        // Vector similarity search + optional metadata filters
-        app.MapPost("/search/similar", async (
-            [FromBody] SimilaritySearchRequest req,
-            QdrantClient qdrant,
-            EmbeddingClient embeddings) =>
-        {
-            try
-            {
-                var embedding = await embeddings.GenerateEmbeddingAsync(req.QueryText);
-                var vector = embedding.Value.ToFloats().ToArray();
-
-                Condition? filter = null;
-
-                if (!string.IsNullOrWhiteSpace(req.ProjectName))
-                    filter = MatchKeyword("project_name", req.ProjectName);
-
-                if (!string.IsNullOrWhiteSpace(req.DefinitionName))
-                    filter = filter is null
-                        ? MatchKeyword("definition_name", req.DefinitionName)
-                        : filter & MatchKeyword("definition_name", req.DefinitionName);
-
-                if (req.FromTimestampMs is not null || req.ToTimestampMs is not null)
-                {
-                    var range = new Qdrant.Client.Grpc.Range();
-                    if (req.FromTimestampMs is not null) range.Gte = (double)req.FromTimestampMs.Value;
-                    if (req.ToTimestampMs is not null)   range.Lte = (double)req.ToTimestampMs.Value;
-                    var timeCond = Range("timestamp_ms", range);
-                    filter = filter is null ? timeCond : filter & timeCond;
-                }
-
-                var searchFilter = filter is null ? null : new Filter { Must = { filter } };
-
-                var hits = await qdrant.SearchAsync(
-                    collectionName: collectionName,
-                    vector: vector,
-                    limit: (ulong)req.Limit,
-                    filter: searchFilter,
-                    scoreThreshold: req.ScoreThreshold,
-                    payloadSelector: true);
-
-                var response = hits.Select(h => new
-                {
-                    id = h.Id?.Uuid ?? h.Id?.Num.ToString(),
-                    score = h.Score,
-                    payload = PayloadToDictionary(h.Payload)
-                });
-
-                return Results.Ok(response);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[search/similar] Error: {ex.Message}");
-                return Results.Problem(detail: ex.Message, statusCode: 500, title: "Similarity search failed");
-            }
-        });
-
-        // Metadata-only search (no vector) via Qdrant REST scroll
-        app.MapPost("/search/metadata", async (
-            [FromBody] MetadataSearchRequest req,
-            IHttpClientFactory httpFactory) =>
-        {
-            try
-            {
-                var http = httpFactory.CreateClient("qdrant-http");
-                object? filter = BuildScrollFilter(req);
-
-                var body = new
-                {
-                    limit = req.Limit,
-                    with_payload = true,
-                    with_vector = false,
-                    filter
-                };
-
-                var resp = await http.PostAsJsonAsync($"collections/{collectionName}/points/scroll", body);
-                resp.EnsureSuccessStatusCode();
-
-                var json = await resp.Content.ReadFromJsonAsync<JsonElement>();
-                return Results.Json(json);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[search/metadata] Error: {ex.Message}");
-                return Results.Problem(detail: ex.Message, statusCode: 500, title: "Metadata search failed");
-            }
-        });
-
-        return app;
-    }
-}
-```
-
-### `Helpers/TextHelpers.cs`
-
-```csharp
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.RegularExpressions;
-using FailedTests.Api.Models;
-
-namespace FailedTests.Api.Helpers;
-
-public static class TextHelpers
-{
-    public static string PickTestName(AzureDevOpsTestCaseResultDto r)
-        => !string.IsNullOrWhiteSpace(r.AutomatedTestName) ? r.AutomatedTestName!
-         : !string.IsNullOrWhiteSpace(r.TestCaseTitle)     ? r.TestCaseTitle!
-         : "<unknown-test>";
-
-    public static string BuildEmbeddingText(FailedTestEnvelope env, string testName)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine($"Project: {env.ProjectName}");
-        sb.AppendLine($"Definition: {env.DefinitionName}");
-        sb.AppendLine($"Build: {env.BuildName} ({env.BuildId})");
-        sb.AppendLine($"Test: {testName}");
-        sb.AppendLine($"Outcome: {env.Result.Outcome}");
-        sb.AppendLine();
-        sb.AppendLine(env.Result.ErrorMessage ?? "");
-        sb.AppendLine();
-        sb.AppendLine(env.Result.StackTrace ?? "");
-        return sb.ToString();
-    }
-
-    public static Guid DeterministicGuid(string input)
-    {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(input));
-        Span<byte> g = stackalloc byte[16];
-        hash.AsSpan(0, 16).CopyTo(g);
-        g[6] = (byte)((g[6] & 0x0F) | 0x50); // version 5
-        g[8] = (byte)((g[8] & 0x3F) | 0x80); // RFC 4122 variant
-        return new Guid(g);
-    }
-
-    public static long ToUnixMs(DateTime dt)
-    {
-        var utc = dt.Kind == DateTimeKind.Utc ? dt : dt.ToUniversalTime();
-        return (long)(utc - DateTime.UnixEpoch).TotalMilliseconds;
-    }
-
-    public static string Normalize(string? s)
-    {
-        if (string.IsNullOrWhiteSpace(s)) return "";
-        var text = s.Trim();
-        text = Regex.Replace(text,
-            @"\b[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}\b",
-            "<guid>");
-        text = Regex.Replace(text, @"\b\d+\b", "<n>");
-        text = Regex.Replace(text, @"\s+", " ");
-        return text;
-    }
-
-    public static string NormalizeStack(string? s)
-    {
-        if (string.IsNullOrWhiteSpace(s)) return "";
-        var lines = s.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-                     .Select(l => l.Trim())
-                     .Select(l => Regex.Replace(l, @":line\s+\d+", ":line <n>"))
-                     .Take(12);
-        return string.Join("\n", lines);
-    }
-}
-```
-
-### `Helpers/QdrantPayloadHelpers.cs`
-
-```csharp
-using FailedTests.Api.Models;
-
-namespace FailedTests.Api.Helpers;
-
-public static class QdrantPayloadHelpers
-{
-    public static Dictionary<string, object?> PayloadToDictionary(
-        IDictionary<string, Qdrant.Client.Grpc.Value> payload)
-    {
-        return payload.ToDictionary(kv => kv.Key, kv => FromProto(kv.Value));
-    }
-
-    public static object? BuildScrollFilter(MetadataSearchRequest req)
-    {
-        var must = new List<object>();
-
-        void AddMatch(string key, string? value)
-        {
-            if (string.IsNullOrWhiteSpace(value)) return;
-            must.Add(new { key, match = new { value } });
-        }
-
-        AddMatch("project_name", req.ProjectName);
-        AddMatch("definition_name", req.DefinitionName);
-        AddMatch("test_name", req.TestName);
-        AddMatch("outcome", req.Outcome);
-
-        if (req.FromTimestampMs is not null || req.ToTimestampMs is not null)
-        {
-            must.Add(new
-            {
-                key = "timestamp_ms",
-                range = new { gte = req.FromTimestampMs, lte = req.ToTimestampMs }
-            });
-        }
-
-        if (must.Count == 0) return null;
-        return new { must };
-    }
-
-    private static object? FromProto(Qdrant.Client.Grpc.Value v) =>
-        v.KindCase switch
-        {
-            Qdrant.Client.Grpc.Value.KindOneofCase.StringValue  => v.StringValue,
-            Qdrant.Client.Grpc.Value.KindOneofCase.DoubleValue  => v.DoubleValue,
-            Qdrant.Client.Grpc.Value.KindOneofCase.IntegerValue => v.IntegerValue,
-            Qdrant.Client.Grpc.Value.KindOneofCase.BoolValue    => v.BoolValue,
-            Qdrant.Client.Grpc.Value.KindOneofCase.StructValue  =>
-                v.StructValue.Fields.ToDictionary(f => f.Key, f => FromProto(f.Value)),
-            Qdrant.Client.Grpc.Value.KindOneofCase.ListValue    =>
-                v.ListValue.Values.Select(FromProto).ToList(),
-            _ => null
-        };
-}
-```
-
-### `Models/Requests.cs`
-
-```csharp
-namespace FailedTests.Api.Models;
-
-public record AzureDevOpsTestCaseResultDto(
-    int Id,
-    string? TestCaseTitle,
-    string? AutomatedTestName,
-    string? ComputerName,
-    string? Outcome,
-    string? ErrorMessage,
-    string? StackTrace,
-    DateTime? StartedDate,
-    DateTime? CompletedDate
-);
-
-public record FailedTestEnvelope(
-    string ProjectName,
-    string DefinitionName,
-    int BuildId,
-    string BuildName,
-    int TestRunId,
-    AzureDevOpsTestCaseResultDto Result
-);
-
-public record IndexResponse(string PointId, string SignatureId);
-
-public record SimilaritySearchRequest(
-    string QueryText,
-    float ScoreThreshold = 0.42f,
-    int Limit = 100,
-    string? ProjectName = null,
-    string? DefinitionName = null,
-    long? FromTimestampMs = null,
-    long? ToTimestampMs = null
-);
-
-public record MetadataSearchRequest(
-    int Limit = 25,
-    string? ProjectName = null,
-    string? DefinitionName = null,
-    string? TestName = null,
-    string? Outcome = null,
-    long? FromTimestampMs = null,
-    long? ToTimestampMs = null
-);
-```
-
-### `Models/AzureDevOpsModels.cs`
-
-SDK-free domain records for the Azure DevOps integration layer:
-
-```csharp
-namespace FailedTests.Api.Models;
-
-public record TestRunInfo(
-    int Id, string Name, string? BuildUri, string? State,
-    int TotalTests, int PassedTests, int UnresolvedTests,
-    DateTime? StartedDate, DateTime? CompletedDate);
-
-public record TestResultInfo(
-    int Id, string? TestCaseTitle, string? AutomatedTestName,
-    string? ComputerName, string? Outcome,
-    string? ErrorMessage, string? StackTrace,
-    DateTime? StartedDate, DateTime? CompletedDate,
-    int TestRunId, string? TestRunName);
-
-public record IndexBuildRequest(
-    string CollectionUrl, string ProjectName, int BuildId,
-    string? DefinitionName = null);
-
-public record IndexBuildResponse(
-    int BuildId, int TestRunsFound, int FailedResultsFound,
-    int PointsIndexed, IReadOnlyList<string> Errors);
-```
-
-### `Services/IAzureDevOpsService.cs` + `AzureDevOpsService.cs`
-
-The interface mirrors the Azure DevOps SDK's `TestManagementHttpClient` but returns our own domain types — so callers never depend on the SDK:
-
-```csharp
-public interface IAzureDevOpsService
-{
-    Task<IReadOnlyList<TestRunInfo>> GetTestRunsForBuildAsync(
-        string collectionUrl, string project, int buildId,
-        CancellationToken ct = default);
-
-    Task<IReadOnlyList<TestResultInfo>> GetTestResultsAsync(
-        string collectionUrl, string project, int testRunId,
-        string? outcomeFilter = null, CancellationToken ct = default);
-}
-```
-
-The production `AzureDevOpsService` reads `AZURE_DEVOPS_PAT` from the environment, creates a `VssConnection`, and calls `TestManagementHttpClient` methods. The mapping from SDK types (`TestRun`, `TestCaseResult`) to our domain records happens entirely within this class.
-
-### `Services/ITestResultIndexer.cs` + `TestResultIndexer.cs`
-
-Shared embed + upsert pipeline used by both `/index/test-result` and `/index/build`:
-
-```csharp
-public interface ITestResultIndexer
-{
-    Task<IndexResponse> IndexTestResultAsync(
-        FailedTestEnvelope envelope, CancellationToken ct = default);
-}
-```
-
-The `TestResultIndexer` implementation calls `TextHelpers` for deterministic IDs + embedding text, generates an OpenAI embedding, builds a `PointStruct`, and upserts into Qdrant.
-
-### `Services/QdrantBootstrapper.cs`
-
-```csharp
-using Grpc.Core;
-using Qdrant.Client;
-using Qdrant.Client.Grpc;
-
-namespace FailedTests.Api.Services;
-
-sealed class QdrantBootstrapper : BackgroundService
-{
-    private readonly QdrantClient _qdrant;
-    private readonly IHttpClientFactory _httpFactory;
-    private readonly string _collection;
-    private readonly int _dim;
-
-    public QdrantBootstrapper(
-        QdrantClient qdrant, IHttpClientFactory httpFactory, string collection, int dim)
-    {
-        _qdrant = qdrant; _httpFactory = httpFactory;
-        _collection = collection; _dim = dim;
-    }
-
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        for (var attempt = 1; attempt <= 30 && !stoppingToken.IsCancellationRequested; attempt++)
-        {
-            try
-            {
-                await EnsureCollectionAsync(stoppingToken);
-                await EnsurePayloadIndexesAsync(stoppingToken);
-                return;
-            }
-            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
-            {
-                Console.WriteLine($"[bootstrap] attempt {attempt} failed: {ex.Message}");
-                await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
-            }
-        }
-    }
-
-    private async Task EnsureCollectionAsync(CancellationToken ct)
-    {
-        try
-        {
-            await _qdrant.CreateCollectionAsync(
-                collectionName: _collection,
-                vectorsConfig: new VectorParams { Size = (uint)_dim, Distance = Distance.Cosine },
-                cancellationToken: ct);
-        }
-        catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists) { }
-    }
-
-    private async Task EnsurePayloadIndexesAsync(CancellationToken ct)
-    {
-        var http = _httpFactory.CreateClient("qdrant-http");
-
-        async Task PutIndexAsync(string fieldName, object fieldSchema)
-        {
-            var body = new { field_name = fieldName, field_schema = fieldSchema };
-            var resp = await http.PutAsJsonAsync($"collections/{_collection}/index", body, ct);
-            if (!resp.IsSuccessStatusCode && (int)resp.StatusCode != 409)
-            {
-                var msg = await resp.Content.ReadAsStringAsync(ct);
-                throw new InvalidOperationException(
-                    $"Index create failed for '{fieldName}': {(int)resp.StatusCode} {msg}");
-            }
-        }
-
-        await PutIndexAsync("project_name",    "keyword");
-        await PutIndexAsync("definition_name", "keyword");
-        await PutIndexAsync("test_name",       "keyword");
-        await PutIndexAsync("outcome",         "keyword");
-        await PutIndexAsync("signature_id",    "keyword");
-        await PutIndexAsync("timestamp_ms", new { type = "integer" });
-    }
-}
-```
-
-What you got here:
-
-* **Write path:** `/index/test-result` upserts a single point with vector + payload
-* **Build indexing:** `/index/build` pulls all failed test results from an Azure DevOps build and indexes them in bulk
-* **Similarity search:** `/search/similar` uses Qdrant vector search with a **score threshold** (default 0.42) to return all meaningful matches, plus optional metadata filters
-* **Metadata-only search:** `/search/metadata` uses Qdrant scroll + filter + range
-* **Testable architecture:** `IAzureDevOpsService` and `ITestResultIndexer` interfaces with NUnit + Moq tests
-* **Error handling:** All endpoints return structured `ProblemDetails` on failure (instead of bare 500s)
-
 ---
 
-## 8) Run it
-
-First, export your OpenAI API key on the host so Docker Compose can pick it up:
+## Run it
 
 ```bash
-# Linux / macOS
+# Export your OpenAI API key
+# Linux/macOS:
 export OPENAI_API_KEY="sk-..."
 
-# Windows PowerShell
+# Windows PowerShell:
 $env:OPENAI_API_KEY = "sk-..."
-```
 
-If you plan to use the `/index/build` endpoint (Azure DevOps integration), also export your PAT:
+# Or create a .env file (recommended — Docker Compose reads it automatically):
+# echo OPENAI_API_KEY=sk-... > .env
 
-```bash
-# Linux / macOS
-export AZURE_DEVOPS_PAT="your-pat-here"
-
-# Windows PowerShell
-$env:AZURE_DEVOPS_PAT = "your-pat-here"
-```
-
-> The PAT needs **Test Management → Read** scope on your Azure DevOps organization.
-
-Then from `./Qdrant.Demo`:
-
-```bash
+# Start everything
 docker compose up --build
 ```
 
-API should be reachable at:
+The API is available at **http://localhost:8080/**
 
-* `http://localhost:8080/`
+Swagger UI is available at **http://localhost:8080/swagger** — use it to explore and test all endpoints interactively.
 
 You should see bootstrap logs like:
 
 ```
-failedtests-api-1  | info: Microsoft.Hosting.Lifetime[14]
-failedtests-api-1  |       Now listening on: http://[::]:8080
+demo-api-1  | [bootstrap] Collection 'documents' ready.
+demo-api-1  | info: Microsoft.Hosting.Lifetime[14]
+demo-api-1  |       Now listening on: http://[::]:8080
 ```
 
 ---
 
-## 9) Test with sample payloads
+## API Reference
 
-### 9.1 Index a failed test result
+### `POST /documents` — Index a single document
 
 ```bash
-curl -X POST http://localhost:8080/index/test-result \
+curl -X POST http://localhost:8080/documents \
   -H "Content-Type: application/json" \
   -d '{
-    "projectName": "MyProject",
-    "definitionName": "CI_Main",
-    "buildId": 12345,
-    "buildName": "CI_Main_2026.02.04",
-    "testRunId": 777,
-    "result": {
-      "id": 42,
-      "testCaseTitle": "Should_calculate_totals",
-      "automatedTestName": "My.Tests.CalculatorTests.Should_calculate_totals",
-      "computerName": "agent-12",
-      "outcome": "Failed",
-      "errorMessage": "System.NullReferenceException: Object reference not set to an instance of an object",
-      "stackTrace": "at My.App.Calculator.Add(Int32 a, Int32 b) in C:\\src\\Calculator.cs:line 88\nat My.Tests.CalculatorTests.Should_calculate_totals() in C:\\src\\CalculatorTests.cs:line 34",
-      "startedDate": "2026-02-04T10:00:00Z",
-      "completedDate": "2026-02-04T10:00:02Z"
+    "id": "article-001",
+    "text": "Photosynthesis is the process by which green plants convert sunlight into chemical energy, producing oxygen as a byproduct.",
+    "tags": {
+      "category": "biology",
+      "level": "introductory"
+    },
+    "properties": {
+      "source_url": "https://en.wikipedia.org/wiki/Photosynthesis",
+      "page": "1"
     }
   }'
 ```
 
-Expected response:
+Response:
 
 ```json
-{
-  "pointId": "50f86b54-...",
-  "signatureId": "9a1c3e7f-..."
-}
+{ "pointId": "a1b2c3d4-..." }
 ```
 
-Re-indexing the same result returns the **same `pointId`** (idempotent upsert).
+Re-indexing the same `id` returns the **same `pointId`** (idempotent upsert — the point is overwritten, not duplicated).
 
-### 9.2 Index all failed tests from an Azure DevOps build
-
-This endpoint pulls test runs and failed results directly from Azure DevOps, then indexes them in bulk:
+### `POST /documents/batch` — Index multiple documents at once
 
 ```bash
-curl -X POST http://localhost:8080/index/build \
+curl -X POST http://localhost:8080/documents/batch \
   -H "Content-Type: application/json" \
-  -d '{
-    "collectionUrl": "https://dev.azure.com/your-org",
-    "projectName": "MyProject",
-    "buildId": 12345,
-    "definitionName": "CI_Main"
-  }'
+  -d '[
+    {
+      "id": "article-001",
+      "text": "Photosynthesis is the process by which green plants convert sunlight into chemical energy.",
+      "tags": { "category": "biology" },
+      "properties": { "source_url": "https://example.com/photosynthesis" }
+    },
+    {
+      "id": "article-002",
+      "text": "Quantum entanglement is a phenomenon where two particles become correlated regardless of distance.",
+      "tags": { "category": "physics" },
+      "properties": { "source_url": "https://example.com/entanglement" }
+    },
+    {
+      "id": "article-003",
+      "text": "Machine learning algorithms improve their performance on a task through experience without being explicitly programmed.",
+      "tags": { "category": "computer-science" },
+      "properties": { "source_url": "https://example.com/ml" }
+    }
+  ]'
 ```
 
-Expected response:
+Response:
 
 ```json
 {
-  "buildId": 12345,
-  "testRunsFound": 3,
-  "failedResultsFound": 7,
-  "pointsIndexed": 7,
+  "total": 3,
+  "succeeded": 3,
+  "failed": 0,
   "errors": []
 }
 ```
 
-> **Requires** `AZURE_DEVOPS_PAT` environment variable with a PAT that has **Test Management → Read** scope.
+### `POST /search/topk` — Top-K similarity search
 
-### 9.3 Similarity search (optionally filter by project/definition)
+Returns exactly **K** results ranked by cosine similarity. Use when you want a fixed number of "best matches."
 
 ```bash
-curl -X POST http://localhost:8080/search/similar \
+curl -X POST http://localhost:8080/search/topk \
   -H "Content-Type: application/json" \
   -d '{
-    "queryText": "NullReferenceException at Calculator.Add",
-    "scoreThreshold": 0.42,
-    "projectName": "MyProject",
-    "definitionName": "CI_Main"
+    "queryText": "How do plants produce energy from sunlight?",
+    "k": 3,
+    "tags": { "category": "biology" }
   }'
 ```
 
-Expected response — an array ranked by cosine similarity score:
+Response — an array ranked by similarity score:
 
 ```json
 [
   {
-    "id": "50f86b54-...",
-    "score": 0.58,
+    "id": "a1b2c3d4-...",
+    "score": 0.82,
     "payload": {
-      "project_name": "MyProject",
-      "test_name": "My.Tests.CalculatorTests.Should_calculate_totals",
-      "error_message": "System.NullReferenceException: ...",
-      "..."
+      "text": "Photosynthesis is the process...",
+      "tag.category": "biology",
+      "tag.level": "introductory",
+      "prop.source_url": "https://en.wikipedia.org/wiki/Photosynthesis",
+      "prop.page": "1",
+      "indexed_at_ms": 1739107200000
     }
   }
 ]
 ```
 
-### 9.4 Metadata-only search (no vectors)
+### `POST /search/threshold` — Threshold similarity search
+
+Returns **all** documents whose cosine similarity score is ≥ the threshold. Use when you want every "good enough" match rather than a fixed count.
+
+```bash
+curl -X POST http://localhost:8080/search/threshold \
+  -H "Content-Type: application/json" \
+  -d '{
+    "queryText": "How do plants produce energy from sunlight?",
+    "scoreThreshold": 0.4,
+    "limit": 100
+  }'
+```
+
+The response format is the same as `/search/topk`.
+
+### `POST /search/metadata` — Metadata-only search (no vector)
+
+Browse/export documents matching **only** tag filters — no similarity involved.
 
 ```bash
 curl -X POST http://localhost:8080/search/metadata \
   -H "Content-Type: application/json" \
   -d '{
-    "limit": 25,
-    "projectName": "MyProject",
-    "outcome": "Failed",
-    "fromTimestampMs": 1707040000000,
-    "toTimestampMs": 1890000000000
+    "limit": 10,
+    "tags": { "category": "biology" }
   }'
 ```
 
-Expected response — Qdrant scroll result with points and payloads:
+Response — Qdrant scroll result with points and payloads:
 
 ```json
 {
   "result": {
     "points": [
       {
-        "id": { "uuid": "50f86b54-..." },
-        "payload": { "project_name": "MyProject", "..." }
+        "id": "a1b2c3d4-...",
+        "payload": { "text": "...", "tag.category": "biology", "..." }
       }
     ],
     "next_page_offset": null
@@ -1066,73 +454,308 @@ Expected response — Qdrant scroll result with points and payloads:
 }
 ```
 
+### `POST /chat` — Ask a question (full RAG)
+
+The complete RAG pipeline: embed the question → retrieve similar documents from Qdrant → feed them as context to the OpenAI chat model → return a grounded answer with sources.
+
+```bash
+curl -X POST http://localhost:8080/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "How do plants produce energy from sunlight?",
+    "k": 3,
+    "tags": { "category": "biology" }
+  }'
+```
+
+Response:
+
+```json
+{
+  "answer": "Plants produce energy from sunlight through a process called photosynthesis. During photosynthesis, green plants convert sunlight into chemical energy, producing oxygen as a byproduct.",
+  "sources": [
+    {
+      "id": "a1b2c3d4-...",
+      "score": 0.82,
+      "textSnippet": "Photosynthesis is the process by which green plants convert sunlight into chemical energy, producing oxygen as a byproduct."
+    }
+  ]
+}
+```
+
+Optional fields:
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `question` | *(required)* | Natural-language question |
+| `k` | `5` | Number of documents to retrieve as context |
+| `scoreThreshold` | `null` | Minimum similarity — documents below this are excluded |
+| `tags` | `null` | Tag filter for retrieval (same as search endpoints) |
+| `systemPrompt` | `null` | Custom system prompt (default: "Answer based only on the provided context…") |
+#### How `/chat` works internally
+
+When you call `POST /chat`, the API executes the full RAG pipeline in four steps:
+
+1. **Embed the question** — Your question text is sent to the OpenAI Embeddings API (`text-embedding-3-small`) to produce a 1 536-dimensional vector. This is the same process used when indexing documents.
+2. **Search Qdrant** — The question vector is compared against all stored document vectors using cosine similarity. The top-K most similar documents are retrieved (optionally filtered by tags and/or a minimum score threshold).
+3. **Build context** — The `text` field from each retrieved document is concatenated into a numbered list. This becomes the "context" the LLM will read.
+4. **Generate answer** — A system prompt + user message (context + question) are sent to the OpenAI Chat Completion API. The model reads the context and produces an answer grounded in your data.
+
+The response includes both the generated `answer` and the `sources` array so you can verify which documents contributed.
+
+#### System prompt & hallucination guardrail
+
+> ⚠️ **This is the most important concept in RAG.**
+
+The default system prompt instructs the model:
+
+> *"Answer the user’s question based **only** on the provided context documents. If the context does not contain enough information to answer, say so clearly — do not make up facts."*
+
+This prompt is the **hallucination guardrail**. Without it, the LLM would answer from its general training data — which may be incorrect, outdated, or irrelevant to your domain. With it, the model is constrained to only use the documents you retrieved. If your documents don't contain the answer, the model will say "I don't have enough information" instead of guessing.
+
+You can override this via the `systemPrompt` field to change the model's personality, language, or constraints — but always keep the "only answer from context" instruction unless you intentionally want open-ended generation.
+
+#### Error responses
+
+All endpoints return [RFC 7807 Problem Details](https://datatracker.ietf.org/doc/html/rfc7807) on error:
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.6.1",
+  "title": "Chat failed",
+  "status": 500,
+  "detail": "The error message from the underlying service."
+}
+```
+
+Input validation errors (e.g. empty `question` or `text`) return **400 Bad Request** with a plain-text message.
 ---
 
-## 10) Side note: when an API key is useful
+## Workshop Exercises
 
-You **don't need** an API key if Qdrant stays inside a private Docker network and only trusted services can reach it.
+### Exercise 1: Index sample data
 
-You typically **do** want an API key when:
+Index the three articles from the batch example above. Verify they appear in the **Qdrant Dashboard** at `http://localhost:6333/dashboard`.
 
-* Qdrant is exposed outside your internal network (ports published, VM, Kubernetes ingress, cloud)
-* Multiple teams/services share a cluster
-* You want auth-based protection (including signed tokens)
+### Exercise 2: Top-K search
 
-Qdrant supports configuring an API key in its security configuration. ([qdrant.tech][7])
+Search for `"energy conversion in cells"` with `k=2`. Which articles come back? What are their scores?
+
+### Exercise 3: Threshold search
+
+Search for `"machine learning"` with `scoreThreshold=0.3`. Try different thresholds (`0.2`, `0.4`, `0.6`) and observe how the result count changes. What threshold feels "right" for your data?
+
+### Exercise 4: Metadata filtering
+
+Add a few more articles with different `category` tags, then use `/search/metadata` to retrieve only `"category": "physics"` documents.
+
+### Exercise 5: Create a payload index (Qdrant Dashboard)
+
+1. Open the Qdrant Dashboard → select the `documents` collection.
+2. Navigate to **Payload Index**.
+3. Create a `keyword` index on `tag.category`.
+4. Observe how filtered searches become faster (especially noticeable with larger datasets).
+
+### Exercise 6: Combine vector search + filters
+
+Use `/search/topk` with both a `queryText` and a `tags` filter. Compare the results with and without the filter — how does narrowing by tag affect what comes back?
+
+### Exercise 7: Idempotent upserts
+
+Index the same document twice with the same `id`. Use the Qdrant Dashboard to verify there's still only one point — not two.
+
+### Exercise 8: Chat with your documents
+
+After indexing the sample articles, ask a question using `POST /chat`:
+
+```bash
+curl -X POST http://localhost:8080/chat \
+  -H "Content-Type: application/json" \
+  -d '{ "question": "How do plants produce energy?" }'
+```
+
+Observe how the answer references the indexed content. Try asking something **not** in your documents — does the model refuse to guess?
+
+### Exercise 9: Custom system prompt
+
+Try changing the behaviour of the chat by providing a custom `systemPrompt`:
+
+```bash
+curl -X POST http://localhost:8080/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "Explain quantum entanglement",
+    "systemPrompt": "You are a teacher explaining concepts to a 10-year-old. Use simple language and analogies."
+  }'
+```
+
+### Exercise 10: Filtered chat
+
+Use `tags` to restrict which documents are used as context:
+
+```bash
+curl -X POST http://localhost:8080/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "What did I index about science?",
+    "tags": { "category": "biology" },
+    "k": 3
+  }'
+```
+
+Compare the answer when filtering by `"biology"` vs `"physics"` — the LLM only sees documents matching the filter.
+
+### Exercise 11: Verify the hallucination guardrail
+
+Ask a question about something that is **not** in your indexed documents:
+
+```bash
+curl -X POST http://localhost:8080/chat \
+  -H "Content-Type: application/json" \
+  -d '{ "question": "What is the capital of France?" }'
+```
+
+The model should respond that it doesn't have enough information to answer. Now try the same question **without** the system prompt guardrail:
+
+```bash
+curl -X POST http://localhost:8080/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "What is the capital of France?",
+    "systemPrompt": "You are a helpful assistant. Answer any question."
+  }'
+```
+
+Notice the difference — without the guardrail, the model happily answers from its training data. This is why the default system prompt is critical for a trustworthy RAG system.
+
+### Exercise 12: Explore the Swagger UI
+
+Open **http://localhost:8080/swagger** in your browser. Try sending requests directly from the Swagger interface. This is especially useful for exploring request/response schemas without writing curl commands.
 
 ---
 
-## 11) Switching Embedding Models
+## Deterministic point-id strategy
 
-This tutorial uses OpenAI's `text-embedding-3-small` (1 536 dims). To use a different model:
+The API generates a **deterministic UUID** for each document:
 
-1. Update `EMBEDDING_DIM` in `docker-compose.yml`.
-2. Configure `EmbeddingClient` with your preferred model or provider (e.g. Azure OpenAI, local models).
-3. Rebuild the container.
+- If you provide an `id` field → `pointId = DeterministicGuid(id)`
+- If you omit `id` → `pointId = DeterministicGuid(text)`
+
+This means re-indexing the same document produces the same point-id, resulting in an **idempotent upsert** (Qdrant overwrites the existing point). No duplicates, ever.
 
 ---
 
-## 12) Unit tests
+## Switching models
 
-The test project uses **NUnit 4** + **Moq** and lives under `tests/FailedTests.Api.Tests/`.
+### Embedding model
+
+The default embedding model is `text-embedding-3-small` (1 536 dims). To use a different model:
+
+1. Set `OPENAI_EMBEDDING_MODEL` in `docker-compose.yml` (e.g. `text-embedding-3-large`).
+2. Update `EMBEDDING_DIM` to match the new model's dimensions.
+3. Delete the old Qdrant collection (or use a new collection name), since Qdrant requires all vectors in a collection to have the same dimensionality.
+4. Rebuild: `docker compose up --build`
+
+No code changes needed — the model name is configurable via environment variable.
+
+### Chat model
+
+The default chat model is `gpt-4.1-nano` (cheapest current OpenAI model). To switch:
+
+1. Set the `OPENAI_CHAT_MODEL` env var in `docker-compose.yml` (e.g. `gpt-4.1-mini`, `gpt-5-mini`, `gpt-5-nano`).
+2. Rebuild: `docker compose up --build`
+
+No code changes needed — the model name is configurable via environment variable.
+
+---
+
+## Unit tests
+
+The test project uses **NUnit 4** + **Moq** and lives under `tests/Qdrant.Demo.Api.Tests/`.
 
 ```bash
 dotnet test --verbosity normal
 ```
 
-| Test class | What it covers |
-|-----------|---------------|
-| `TextHelpersTests` (17 tests) | `PickTestName`, `DeterministicGuid`, `Normalize`, `NormalizeStack`, `ToUnixMs`, `BuildEmbeddingText` |
-| `TestResultIndexerTests` (2 tests) | Deterministic point-id / signature-id stability; same error across different builds shares a signature |
-| `BuildIndexEndpointTests` (5 tests) | Orchestration logic with mocked `IAzureDevOpsService` + `ITestResultIndexer`; partial-failure resilience |
+| Test class | Count | What it covers |
+|-----------|-------|---------------|
+| `StringExtensionsTests` | 4 | `ToDeterministicGuid` determinism, uniqueness, non-empty, version bits |
+| `DateTimeExtensionsTests` | 2 | `ToUnixMs` epoch and known timestamp |
+| `DocumentIndexerTests` | 9 | Point-id from explicit Id vs text fallback, idempotency, model shape, search request defaults |
+| `QdrantFilterFactoryTests` | 7 | `CreateScrollFilter` + `CreateGrpcFilter` with null, empty, single, and multi-tag dictionaries |
+| `ChatTests` | 10 | `ChatRequest` defaults, `ChatSource`/`ChatResponse`/`SearchHit` record shapes, `PayloadKeys` constants |
 
 ---
 
-## 13) Troubleshooting
+## Extending the template
+
+### Add streaming chat responses
+
+The current `POST /chat` waits for the full response. You can add a `POST /chat/stream` endpoint
+using `ChatClient.CompleteChatStreamingAsync()` to return Server-Sent Events (SSE) for a
+real-time typing effect:
+
+```csharp
+app.MapPost("/chat/stream", async (ChatRequest req, ChatClient chatClient, ...) =>
+{
+    // ... embed + retrieve (same as /chat) ...
+    var stream = chatClient.CompleteChatStreamingAsync(messages);
+    return Results.Stream(async outputStream =>
+    {
+        await foreach (var update in stream)
+        {
+            foreach (var part in update.ContentUpdate)
+            {
+                if (!string.IsNullOrEmpty(part.Text))
+                {
+                    await outputStream.WriteAsync(
+                        Encoding.UTF8.GetBytes($"data: {part.Text}\n\n"));
+                    await outputStream.FlushAsync();
+                }
+            }
+        }
+    }, "text/event-stream");
+});
+```
+
+### Add multi-turn conversation
+
+Extend `ChatRequest` with an optional `History` field (`List<ChatMessage>?`) and prepend
+previous messages before the current question. This enables follow-up questions that
+reference earlier answers.
+
+### Use a different vector database
+
+The indexing and search patterns are the same across vector DBs. Replace `QdrantClient` with your preferred provider's SDK (Pinecone, Weaviate, Milvus, ChromaDB, etc.).
+
+### Custom metadata schemas for your domain
+
+Adapt the tags and properties for your use case:
+
+| Domain | Tags (filterable) | Properties (informational) |
+|--------|-------------------|---------------------------|
+| **Knowledge base** | `department`, `document_type`, `language` | `author`, `last_updated`, `summary` |
+| **E-commerce** | `brand`, `category`, `price_range` | `product_url`, `image_url`, `description` |
+| **Support tickets** | `priority`, `status`, `assigned_team` | `customer_id`, `created_at`, `resolution_notes` |
+| **Code documentation** | `language`, `framework`, `api_version` | `repo_url`, `file_path`, `last_commit` |
+
+### Improve batch ingestion performance
+
+The current `POST /documents/batch` endpoint processes documents sequentially (one embedding call + one upsert per document). For production ingestion pipelines with hundreds or thousands of documents, consider:
+
+1. **Parallel embedding** — batch multiple texts into a single OpenAI embedding call using `GenerateEmbeddingsAsync` (plural).
+2. **Batch upsert** — Qdrant's `UpsertAsync` already accepts a list of points. Collect all points in memory first, then upsert them in one call.
+3. **Chunking** — split large documents into smaller overlapping chunks before embedding, so each vector represents a focused passage rather than an entire document.
+
+---
+
+## Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
-| `OPENAI_API_KEY is missing` at startup | Env var not exported before `docker compose up` | Run `export OPENAI_API_KEY="sk-..."` (Linux/Mac) or `$env:OPENAI_API_KEY = "sk-..."` (PowerShell) first |
-| `AZURE_DEVOPS_PAT` not set | Env var missing; `/index/build` will fail | Export the PAT: `$env:AZURE_DEVOPS_PAT = "your-pat"` (PowerShell) |
-| `docker compose up` hangs or qdrant never becomes healthy | Docker Desktop not running | Start Docker Desktop and wait for the engine to be ready |
-| `[bootstrap] attempt N failed: ...` repeating 30 times | Qdrant container didn't start in time | Check `docker compose logs qdrant` for errors; ensure port 6333/6334 are free |
-| `CS0104: 'Range' is an ambiguous reference` | `System.Range` vs `Qdrant.Client.Grpc.Range` | Use fully qualified `Qdrant.Client.Grpc.Range` |
-| `CS0121: ambiguous PutAsJsonAsync` | AzDO SDK brings in a conflicting extension method | Use `System.Net.Http.Json.HttpClientJsonExtensions.PutAsJsonAsync(...)` |
-| Similarity search returns `[]` | No points indexed yet, or filter too restrictive | Index a point first, try searching without filters |
-| 500 error with `AuthenticationException` from OpenAI | Invalid or expired API key | Verify your key at [platform.openai.com](https://platform.openai.com/api-keys) |
-| `/index/build` returns 401 from Azure DevOps | PAT expired or insufficient scope | Generate a new PAT with **Test Management → Read** scope |
-
----
-
-## Next steps
-
-* A `QdrantFailureStore` service class (DI-friendly) to encapsulate Qdrant operations behind an interface
-* A "bucket collection" approach (signature-level points + occurrence collection) to support both "latest summary" and "full history" cleanly
-
-[1]: https://qdrant.tech/documentation/quickstart/ "https://qdrant.tech/documentation/quickstart/"
-[2]: https://github.com/qdrant/qdrant/releases "https://github.com/qdrant/qdrant/releases"
-[3]: https://github.com/qdrant/qdrant-dotnet "https://github.com/qdrant/qdrant-dotnet"
-[4]: https://qdrant.tech/documentation/concepts/points/ "https://qdrant.tech/documentation/concepts/points/"
-[5]: https://api.qdrant.tech/v-1-12-x/api-reference/points/upsert-points "https://api.qdrant.tech/v-1-12-x/api-reference/points/upsert-points"
-[6]: https://learn.microsoft.com/en-us/dotnet/api/microsoft.teamfoundation.testmanagement.webapi.testcaseresult?view=azure-devops-dotnet "https://learn.microsoft.com/en-us/dotnet/api/microsoft.teamfoundation.testmanagement.webapi.testcaseresult?view=azure-devops-dotnet"
-[7]: https://qdrant.tech/documentation/guides/security/ "https://qdrant.tech/documentation/guides/security/"
+| `OPENAI_API_KEY is missing` at startup | Env var not exported | `$env:OPENAI_API_KEY = "sk-..."` (PowerShell) before `docker compose up` |
+| `docker compose up` hangs | Docker Desktop not running | Start Docker Desktop, wait for engine |
+| `[bootstrap] attempt N failed` repeating | Qdrant not ready yet | Wait — it retries 30 times. Check `docker compose logs qdrant` |
+| Search returns `[]` | No documents indexed | Index documents first with `POST /documents` |
+| Tag filters return no results | No payload index on that tag field | Create a `keyword` index via Qdrant Dashboard (Exercise 5) |
+| 500 with `AuthenticationException` | Invalid OpenAI key | Check key at [platform.openai.com](https://platform.openai.com/api-keys) |
