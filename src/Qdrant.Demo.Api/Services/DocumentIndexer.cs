@@ -10,10 +10,16 @@ namespace Qdrant.Demo.Api.Services;
 /// Production implementation of <see cref="IDocumentIndexer"/>.
 /// Embeds the document text via OpenAI, stores tags as <c>tag.{key}</c>
 /// and properties as <c>prop.{key}</c> in the Qdrant payload.
+/// <para>
+/// When the input text exceeds the configured chunk size, the text is
+/// automatically split into overlapping chunks and each chunk is stored
+/// as a separate Qdrant point with parent-child metadata.
+/// </para>
 /// </summary>
 public sealed class DocumentIndexer(
     QdrantClient qdrant,
     IEmbeddingService embeddings,
+    ITextChunker chunker,
     string collectionName) : IDocumentIndexer
 {
     /// <inheritdoc />
@@ -21,48 +27,81 @@ public sealed class DocumentIndexer(
         DocumentUpsertRequest request,
         CancellationToken ct = default)
     {
-        // Deterministic point-id: from caller-supplied Id, or hash of Text
+        // Deterministic source-id: from caller-supplied Id, or hash of Text
         var idSource = !string.IsNullOrWhiteSpace(request.Id)
             ? request.Id!
             : request.Text;
-        var pointId = idSource.ToDeterministicGuid();
+        var sourceId = idSource.ToDeterministicGuid().ToString("D");
 
-        // Generate embedding from the document text
-        var vector = await embeddings.EmbedAsync(request.Text, ct);
+        // Split into chunks (returns a single chunk if text is short enough)
+        var chunks = chunker.Chunk(request.Text);
 
-        var point = new PointStruct
+        List<PointStruct> points = [];
+        List<string> chunkPointIds = [];
+
+        for (var i = 0; i < chunks.Count; i++)
         {
-            Id = new PointId { Uuid = pointId.ToString("D") },
-            Vectors = vector,
-            Payload =
+            var chunk = chunks[i];
+
+            // For single-chunk documents keep the original id;
+            // for multi-chunk, append _chunk_{index} for uniqueness.
+            var pointIdStr = chunks.Count == 1
+                ? sourceId
+                : $"{sourceId}_chunk_{i}".ToDeterministicGuid().ToString("D");
+
+            chunkPointIds.Add(pointIdStr);
+
+            // Generate embedding for this chunk's text
+            var vector = await embeddings.EmbedAsync(chunk.Text, ct);
+
+            var point = new PointStruct
             {
-                // Store the original text so it can be returned in results
-                [Text] = request.Text,
-                // Timestamp for when this point was indexed
-                [IndexedAtMs] = DateTime.UtcNow.ToUnixMs()
+                Id = new PointId { Uuid = pointIdStr },
+                Vectors = vector,
+                Payload =
+                {
+                    [Text] = chunk.Text,
+                    [IndexedAtMs] = DateTime.UtcNow.ToUnixMs()
+                }
+            };
+
+            // Chunking metadata — always present so search results can
+            // be grouped or filtered by source document.
+            if (chunks.Count > 1)
+            {
+                point.Payload[SourceDocId] = sourceId;
+                point.Payload[ChunkIndex] = i.ToString();
+                point.Payload[TotalChunks] = chunks.Count.ToString();
             }
-        };
 
-        // Store tags as tag.{key} — these are indexed and filterable
-        if (request.Tags is not null)
-        {
-            foreach (var (key, value) in request.Tags)
-                point.Payload[$"{TagPrefix}{key}"] = value;
-        }
+            // Store tags as tag.{key} — these are indexed and filterable.
+            // Every chunk inherits the parent document's tags so that
+            // tag-filtered searches still match.
+            if (request.Tags is not null)
+            {
+                foreach (var (key, value) in request.Tags)
+                    point.Payload[$"{TagPrefix}{key}"] = value;
+            }
 
-        // Store properties as prop.{key} — informational only, not indexed
-        if (request.Properties is not null)
-        {
-            foreach (var (key, value) in request.Properties)
-                point.Payload[$"{PropertyPrefix}{key}"] = value;
+            // Store properties as prop.{key} — informational, not indexed.
+            if (request.Properties is not null)
+            {
+                foreach (var (key, value) in request.Properties)
+                    point.Payload[$"{PropertyPrefix}{key}"] = value;
+            }
+
+            points.Add(point);
         }
 
         await qdrant.UpsertAsync(
             collectionName,
-            [point],
+            points,
             wait: true,
             cancellationToken: ct);
 
-        return new DocumentUpsertResponse(pointId.ToString("D"));
+        return new DocumentUpsertResponse(
+            PointId: chunkPointIds[0],
+            TotalChunks: chunks.Count,
+            ChunkPointIds: chunkPointIds);
     }
 }

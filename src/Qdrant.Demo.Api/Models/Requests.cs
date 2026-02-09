@@ -49,7 +49,23 @@ public record DocumentUpsertRequest(
 );
 
 /// <summary>Response returned after a successful upsert.</summary>
-public record DocumentUpsertResponse(string PointId);
+/// <param name="PointId">
+///   The Qdrant point id of the stored document.
+///   When chunking splits the text into multiple vectors, this is the id
+///   of the <b>first</b> chunk — see <see cref="ChunkPointIds"/> for all.
+/// </param>
+/// <param name="TotalChunks">
+///   How many chunks the document was split into (1 when it fit in a single embedding).
+/// </param>
+/// <param name="ChunkPointIds">
+///   All Qdrant point ids produced — one per chunk.  For single-chunk
+///   documents this list contains exactly the <see cref="PointId"/>.
+/// </param>
+public record DocumentUpsertResponse(
+    string PointId,
+    int TotalChunks = 1,
+    IReadOnlyList<string>? ChunkPointIds = null
+);
 
 /// <summary>Response for a batch upsert.</summary>
 public record BatchUpsertResponse(

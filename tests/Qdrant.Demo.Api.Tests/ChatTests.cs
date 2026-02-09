@@ -126,4 +126,40 @@ public class ChatTests
         Assert.That(TagPrefix, Is.EqualTo("tag."));
         Assert.That(PropertyPrefix, Is.EqualTo("prop."));
     }
+
+    // ─── Chunking payload keys ──────────────────────────────────
+
+    [Test]
+    public void PayloadKeys_ChunkingConstants_AreCorrect()
+    {
+        Assert.That(SourceDocId, Is.EqualTo("source_doc_id"));
+        Assert.That(ChunkIndex, Is.EqualTo("chunk_index"));
+        Assert.That(TotalChunks, Is.EqualTo("total_chunks"));
+    }
+
+    // ─── DocumentUpsertResponse shape (with chunking) ───────────
+
+    [Test]
+    public void DocumentUpsertResponse_SingleChunk_Defaults()
+    {
+        var response = new DocumentUpsertResponse("abc-123");
+        Assert.That(response.PointId, Is.EqualTo("abc-123"));
+        Assert.That(response.TotalChunks, Is.EqualTo(1));
+        Assert.That(response.ChunkPointIds, Is.Null);
+    }
+
+    [Test]
+    public void DocumentUpsertResponse_MultiChunk()
+    {
+        List<string> ids = ["id-0", "id-1", "id-2"];
+
+        var response = new DocumentUpsertResponse(
+            PointId: "id-0",
+            TotalChunks: 3,
+            ChunkPointIds: ids);
+
+        Assert.That(response.TotalChunks, Is.EqualTo(3));
+        Assert.That(response.ChunkPointIds, Has.Count.EqualTo(3));
+        Assert.That(response.PointId, Is.EqualTo(response.ChunkPointIds![0]));
+    }
 }

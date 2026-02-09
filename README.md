@@ -50,7 +50,8 @@ By the end of this workshop you will understand:
 3. **How Qdrant stores and queries data** — collections, points, payloads, and filters.
 4. **The difference between filterable and informational metadata** — tags vs properties.
 5. **How to ground LLM answers in your own data** — the RAG pattern that prevents hallucination.
-6. **How to build a production-shaped .NET API** — minimal APIs, dependency injection, service abstractions.
+6. **How to handle documents that exceed the embedding model's token limit** — chunking strategies.
+7. **How to build a production-shaped .NET API** — minimal APIs, dependency injection, service abstractions.
 
 ---
 
@@ -68,6 +69,8 @@ By the end of this workshop you will understand:
 | **Grounding** | Providing an LLM with factual context (retrieved documents) so it answers based on evidence, not imagination. |
 | **Hallucination** | When an LLM generates plausible-sounding but factually incorrect information. RAG reduces this. |
 | **System prompt** | An instruction message sent to the LLM before the user's question, controlling its behaviour and constraints. |
+| **Chunk** | A smaller segment of a long document. Documents that exceed the embedding model's token limit are split into overlapping chunks, each embedded and stored as a separate Qdrant point. |
+| **Overlap** | Characters shared between consecutive chunks so that context is not lost at chunk boundaries. |
 
 | Component | Role |
 |-----------|------|
@@ -116,15 +119,19 @@ Qdrant.Demo/
         DateTimeExtensions.cs    # ToUnixMs()
         QdrantPayloadExtensions.cs  # ToDictionary(), ToFormattedHits()
       Models/
+        ChunkingOptions.cs       # chunking configuration (MaxChunkSize, Overlap)
         PayloadKeys.cs           # shared Qdrant payload field-name constants
         Requests.cs              # all DTOs — upsert, search, chat, and SearchHit
+        TextChunk.cs             # chunk data record (Text, Index, offsets)
       Services/
         IEmbeddingService.cs     # text → vector abstraction
         EmbeddingService.cs      # OpenAI implementation
         IQdrantFilterFactory.cs  # tag filter builder abstraction
         QdrantFilterFactory.cs   # gRPC + REST filter implementations
         IDocumentIndexer.cs      # embed + upsert abstraction
-        DocumentIndexer.cs       # production implementation
+        DocumentIndexer.cs       # production implementation (with chunking)
+        ITextChunker.cs          # text → chunks abstraction
+        TextChunker.cs           # character-based chunker with sentence-boundary awareness
         QdrantBootstrapper.cs    # BackgroundService — collection bootstrap
   tests/
     Qdrant.Demo.Api.Tests/
@@ -133,6 +140,7 @@ Qdrant.Demo/
       DateTimeExtensionsTests.cs
       DocumentIndexerTests.cs
       QdrantFilterFactoryTests.cs
+      TextChunkerTests.cs
       ChatTests.cs
 ```
 
@@ -632,6 +640,135 @@ Notice the difference — without the guardrail, the model happily answers from 
 
 Open **http://localhost:8080/swagger** in your browser. Try sending requests directly from the Swagger interface. This is especially useful for exploring request/response schemas without writing curl commands.
 
+### Exercise 13: Index a long document (observe chunking)
+
+Paste a **long** piece of text (> 2000 characters) into a single `/documents` call. The API will automatically split it into overlapping chunks:
+
+```bash
+curl -s http://localhost:8080/documents -H "Content-Type: application/json" -d '{
+  "id": "long-doc-001",
+  "text": "<paste a very long text here — e.g. the first chapter of a book, a Wikipedia article, or a long technical document that exceeds 2000 characters>",
+  "tags": { "category": "demo" }
+}'
+```
+
+**Look at the response:**
+
+```json
+{
+  "pointId": "a1b2c3d4-...",
+  "totalChunks": 3,
+  "chunkPointIds": [
+    "a1b2c3d4-...",
+    "e5f6a7b8-...",
+    "c9d0e1f2-..."
+  ]
+}
+```
+
+Notice `totalChunks > 1` — the text was split. Each chunk is stored as a separate Qdrant point with its own embedding. Open the **Qdrant Dashboard** (http://localhost:6333/dashboard) and inspect the points. You'll see `source_doc_id`, `chunk_index`, and `total_chunks` fields in the payload.
+
+**Why chunking matters:** Embedding models have a maximum token limit (8,191 tokens for `text-embedding-3-small`). Without chunking, texts that exceed this limit cause API errors. Chunking also improves retrieval precision — smaller, focused passages are easier to match than entire documents.
+
+### Exercise 14: Search across chunks and observe multi-hit results
+
+After indexing a long document (Exercise 13), search for something specific:
+
+```bash
+curl -s http://localhost:8080/search/topk -H "Content-Type: application/json" -d '{
+  "queryText": "<a question about content somewhere in the long document>",
+  "k": 5
+}'
+```
+
+You may see **multiple results from the same source document** (they share the same `source_doc_id`). This is expected — different chunks match with different scores.
+
+**Discussion points:**
+- Why does overlap help? (Prevents losing context at chunk boundaries — a sentence split between chunks would be partially in both.)
+- How does chunk size affect retrieval? (Smaller chunks = more precise retrieval but less context per hit. Larger chunks = more context but may dilute relevance.)
+- What about deduplication? (In production, you might group results by `source_doc_id` and return only the best-scoring chunk per document.)
+
+---
+
+## Key concept: Chunking long documents
+
+Embedding models have a **maximum input token limit** (8,191 tokens for `text-embedding-3-small`, roughly ~32,000 characters). When a document exceeds this limit, the embedding API rejects it.
+
+The API automatically handles this with a **character-based chunker** that:
+
+1. **Splits** the text into chunks of ≤ `MaxChunkSize` characters (default: 2,000 ≈ 500 tokens)
+2. **Overlaps** consecutive chunks by `Overlap` characters (default: 200) to preserve context
+3. **Respects sentence boundaries** — breaks at `.` `?` `!` or paragraph breaks when possible
+
+### How overlap works — the sliding window
+
+The chunker uses a **sliding window** strategy. After producing each chunk, the window advances by `chunkLength − Overlap` characters, so the **tail** of one chunk becomes the **head** of the next:
+
+```
+Original text (5 000 chars), MaxChunkSize=2000, Overlap=200:
+
+Chunk 0:  |████████████████████|                 chars 0 – 2000
+Chunk 1:           |████████████████████|        chars 1800 – 3800
+Chunk 2:                    |████████████████████| chars 3600 – 5000
+                   ◄── 200 ──►
+                   shared overlap
+```
+
+This means any sentence near a chunk boundary appears **in full in at least one chunk**, preventing the embedding from capturing a half-sentence.
+
+### Sentence-boundary snapping
+
+Instead of always cutting at exactly `MaxChunkSize` characters (which could land mid-word or mid-sentence), the chunker scans backwards through the **second half** of the proposed chunk to find a natural break point. The priority order is:
+
+1. **Paragraph break** (`\n`) — cleanest boundary
+2. **Sentence ender** (`. `, `? `, `! `) — punctuation followed by whitespace
+3. **Word boundary** (space) — avoids cutting mid-word
+4. **Hard cut** — last resort if no boundary is found in the second half
+
+Because boundary snapping can shorten the chunk, the **effective overlap may be larger** than the configured value — e.g. if a chunk is snapped from 2,000 to 1,850 chars, the next window overlaps by 200 from the shorter length, giving ~350 chars of shared text. The configured `Overlap` is a **minimum guarantee**, not a fixed constant.
+
+### Safety guard
+
+If `Overlap ≥ chunkLength` (e.g. misconfiguration), the advance would be ≤ 0 and the loop would never progress. The chunker forces `advance = chunkLength` in that case, effectively disabling overlap to prevent an infinite loop.
+
+### How chunked documents are stored
+
+When text is split into N chunks, the API creates **N separate Qdrant points**:
+
+| Payload field | Value | Purpose |
+|---------------|-------|---------|
+| `text` | The chunk's text (not the full document) | Returned in search results |
+| `source_doc_id` | Original document's point-id | Links chunks to their parent |
+| `chunk_index` | `"0"`, `"1"`, `"2"` … | Ordering within the document |
+| `total_chunks` | `"3"` | Total chunk count |
+| `tag.*` | Inherited from parent | Every chunk is filterable by the same tags |
+
+For short documents (≤ `MaxChunkSize`), no chunking metadata is added — the behavior is unchanged.
+
+### Configuring chunk size
+
+Override via `appsettings.json` or environment variables:
+
+```json
+{
+  "Chunking": {
+    "MaxChunkSize": 2000,
+    "Overlap": 200
+  }
+}
+```
+
+Or via env vars: `CHUNKING_MAX_SIZE=1500` and `CHUNKING_OVERLAP=300`.
+
+### Token-based vs character-based chunking
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| **Character-based** (used here) | Zero dependencies, simple, fast | ~4 chars/token approximation for English |
+| **Token-based** (`Microsoft.ML.Tokenizers`) | Exact token counting, production-grade | Extra dependency (~340 KB) |
+
+The character-based approach uses a conservative default (2,000 chars ≈ 500 tokens) to stay well under the 8,191-token limit. For production systems or non-English text, consider switching to `Microsoft.ML.Tokenizers` for precise token counting.
+
 ---
 
 ## Deterministic point-id strategy
@@ -683,6 +820,7 @@ dotnet test --verbosity normal
 | `DateTimeExtensionsTests` | 2 | `ToUnixMs` epoch and known timestamp |
 | `DocumentIndexerTests` | 9 | Point-id from explicit Id vs text fallback, idempotency, model shape, search request defaults |
 | `QdrantFilterFactoryTests` | 7 | `CreateScrollFilter` + `CreateGrpcFilter` with null, empty, single, and multi-tag dictionaries |
+| `TextChunkerTests` | 18 | Short/long text, overlap, sentence boundaries, paragraph breaks, edge cases, default options |
 | `ChatTests` | 10 | `ChatRequest` defaults, `ChatSource`/`ChatResponse`/`SearchHit` record shapes, `PayloadKeys` constants |
 
 ---
