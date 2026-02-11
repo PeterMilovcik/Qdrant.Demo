@@ -76,31 +76,52 @@ dotnet run
 
 ## Step 2 — Index some documents
 
-If you haven't already, index the sample articles:
+If you haven't already, index the sample articles using **Swagger UI**:
 
-```bash
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{"id": "article-001", "text": "Photosynthesis is the process by which green plants convert sunlight into chemical energy, producing oxygen as a byproduct."}'
+1. Open **http://localhost:8080/swagger** in your browser
+2. Find the **POST /documents** endpoint and click it to expand
+3. Click **Try it out**
+4. Paste each JSON body below and click **Execute** (repeat for all three):
 
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{"id": "article-002", "text": "Quantum entanglement is a phenomenon where two particles become linked, so the quantum state of one instantly influences the other, regardless of distance."}'
+**Document 1:**
 
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{"id": "article-003", "text": "Machine learning is a subset of artificial intelligence where algorithms learn patterns from data rather than being explicitly programmed."}'
+```json
+{
+  "id": "article-001",
+  "text": "Photosynthesis is the process by which green plants convert sunlight into chemical energy, producing oxygen as a byproduct."
+}
+```
+
+**Document 2:**
+
+```json
+{
+  "id": "article-002",
+  "text": "Quantum entanglement is a phenomenon where two particles become linked, so the quantum state of one instantly influences the other, regardless of distance."
+}
+```
+
+**Document 3:**
+
+```json
+{
+  "id": "article-003",
+  "text": "Machine learning is a subset of artificial intelligence where algorithms learn patterns from data rather than being explicitly programmed."
+}
 ```
 
 ## Step 3 — Search!
 
-```bash
-curl -X POST http://localhost:8080/search/topk \
-  -H "Content-Type: application/json" \
-  -d '{"queryText": "How do plants produce energy from sunlight?", "k": 3}'
+In **Swagger UI**, find the **POST /search/topk** endpoint, click **Try it out**, paste the following body and click **Execute**:
+
+```json
+{
+  "queryText": "How do plants produce energy from sunlight?",
+  "k": 3
+}
 ```
 
-Response — all 3 documents ranked by similarity:
+In the **Response body** you should see all 3 documents ranked by similarity:
 
 ```json
 [
@@ -133,30 +154,39 @@ Response — all 3 documents ranked by similarity:
 
 ### Exercise 2.1 — Try different queries
 
-Search for each of these and observe which document scores highest:
+Using **POST /search/topk** in Swagger UI, try each query below and observe which document scores highest:
 
-```bash
-# Should match article-002 (quantum physics)
-curl -X POST http://localhost:8080/search/topk \
-  -H "Content-Type: application/json" \
-  -d '{"queryText": "spooky action at a distance", "k": 3}'
+**Query 1** — should match article-002 (quantum physics):
 
-# Should match article-003 (ML/AI)
-curl -X POST http://localhost:8080/search/topk \
-  -H "Content-Type: application/json" \
-  -d '{"queryText": "training algorithms on datasets", "k": 3}'
+```json
+{
+  "queryText": "spooky action at a distance",
+  "k": 3
+}
+```
+
+**Query 2** — should match article-003 (ML/AI):
+
+```json
+{
+  "queryText": "training algorithms on datasets",
+  "k": 3
+}
 ```
 
 ### Exercise 2.2 — Change K
 
-Try `"k": 1` to get only the single best match. Then try `"k": 10` — with only 3 documents indexed, you'll still get at most 3 results.
+In Swagger UI, try the same search with `"k": 1` to get only the single best match. Then try `"k": 10` — with only 3 documents indexed, you'll still get at most 3 results.
 
 ### Exercise 2.3 — Search for something unrelated
 
-```bash
-curl -X POST http://localhost:8080/search/topk \
-  -H "Content-Type: application/json" \
-  -d '{"queryText": "best pizza recipe", "k": 3}'
+Using **POST /search/topk** in Swagger UI, try:
+
+```json
+{
+  "queryText": "best pizza recipe",
+  "k": 3
+}
 ```
 
 You'll still get 3 results (Top-K always returns K results if the collection has enough), but the scores will be noticeably lower. There's no "minimum relevance" filter yet — that comes in Module 4 (threshold search).
