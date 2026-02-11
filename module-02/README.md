@@ -126,22 +126,28 @@ In the **Response body** you should see all 3 documents ranked by similarity:
 ```json
 [
   {
-    "id": "a1b2c3d4-...",
-    "score": 0.89,
+    "id": "99561fa9-ef52-df51-bf9c-469607d4596e",
+    "score": 0.64333606,
     "payload": {
-      "text": "Photosynthesis is the process by which green plants...",
-      "indexed_at_ms": 1234567890000
+      "indexed_at_ms": 1770831019588,
+      "text": "Photosynthesis is the process by which green plants convert sunlight into chemical energy, producing oxygen as a byproduct."
     }
   },
   {
-    "id": "...",
-    "score": 0.42,
-    "payload": { "text": "Quantum entanglement is..." }
+    "id": "df45c345-85a8-6a5e-aa63-4bbf79fe3f21",
+    "score": 0.0954015,
+    "payload": {
+      "indexed_at_ms": 1770831028172,
+      "text": "Machine learning is a subset of artificial intelligence where algorithms learn patterns from data rather than being explicitly programmed."
+    }
   },
   {
-    "id": "...",
-    "score": 0.38,
-    "payload": { "text": "Machine learning is..." }
+    "id": "a6ea9a4f-e9a6-5c50-b678-3c016e58f96b",
+    "score": 0.093406975,
+    "payload": {
+      "text": "Quantum entanglement is a phenomenon where two particles become linked, so the quantum state of one instantly influences the other, regardless of distance.",
+      "indexed_at_ms": 1770831023087
+    }
   }
 ]
 ```
