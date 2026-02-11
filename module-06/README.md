@@ -146,55 +146,65 @@ dotnet run
 
 ## Step 2 — Index documents (if not already present)
 
-```bash
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{"id":"bio-001","text":"Photosynthesis converts sunlight into chemical energy in green plants.","tags":{"category":"biology"}}'
+1. Open **Swagger UI** in your browser: **http://localhost:8080/swagger**
+2. Find the **POST /documents** endpoint, click **Try it out**
+3. Paste each JSON body below and click **Execute**:
 
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{"id":"phys-001","text":"Quantum entanglement links two particles across any distance.","tags":{"category":"physics"}}'
+**Document 1:**
+
+```json
+{
+  "id": "bio-001",
+  "text": "Photosynthesis converts sunlight into chemical energy in green plants.",
+  "tags": { "category": "biology" }
+}
+```
+
+**Document 2:**
+
+```json
+{
+  "id": "phys-001",
+  "text": "Quantum entanglement links two particles across any distance.",
+  "tags": { "category": "physics" }
+}
 ```
 
 ## Step 3 — Custom system prompt
 
-```bash
-curl -X POST http://localhost:8080/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "question": "Tell me about photosynthesis",
-    "systemPrompt": "You are a children'\''s science teacher. Explain everything as if speaking to a 7-year-old. Use simple words and fun analogies."
-  }'
+In **Swagger UI**, find the **POST /chat** endpoint, click **Try it out**, paste the following body and click **Execute**:
+
+```json
+{
+  "question": "Tell me about photosynthesis",
+  "systemPrompt": "You are a children's science teacher. Explain everything as if speaking to a 7-year-old. Use simple words and fun analogies."
+}
 ```
 
 Compare this with the default prompt — same question, very different tone.
 
 ## Step 4 — Filtered chat
 
-Only pull from biology documents:
+Using **POST /chat** in Swagger UI, only pull from biology documents:
 
-```bash
-curl -X POST http://localhost:8080/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "question": "Tell me something interesting",
-    "tags": { "category": "biology" }
-  }'
+```json
+{
+  "question": "Tell me something interesting",
+  "tags": { "category": "biology" }
+}
 ```
 
 The physics document is never seen by the LLM.
 
 ## Step 5 — Score threshold
 
-Exclude weak matches:
+Using **POST /chat** in Swagger UI, exclude weak matches:
 
-```bash
-curl -X POST http://localhost:8080/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "question": "best pizza recipe",
-    "scoreThreshold": 0.6
-  }'
+```json
+{
+  "question": "best pizza recipe",
+  "scoreThreshold": 0.6
+}
 ```
 
 With a 0.6 threshold, no documents about biology/physics should pass. The LLM will respond that it has no relevant context.
@@ -209,16 +219,16 @@ Call `/chat` three times with the same question but different system prompts: a 
 
 ### Exercise 6.2 — Combine all controls
 
-```bash
-curl -X POST http://localhost:8080/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "question": "How do plants get energy?",
-    "k": 3,
-    "scoreThreshold": 0.4,
-    "tags": { "category": "biology" },
-    "systemPrompt": "Answer in exactly one sentence."
-  }'
+Using **POST /chat** in Swagger UI, try combining all parameters:
+
+```json
+{
+  "question": "How do plants get energy?",
+  "k": 3,
+  "scoreThreshold": 0.4,
+  "tags": { "category": "biology" },
+  "systemPrompt": "Answer in exactly one sentence."
+}
 ```
 
 ### Exercise 6.3 — Run the tests

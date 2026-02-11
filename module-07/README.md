@@ -164,13 +164,19 @@ Visit `http://localhost:8080/` — the response now includes a `chunking` sectio
 
 ## Step 2 — Index a short document (single chunk)
 
-```bash
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{"id": "short-001", "text": "Photosynthesis converts sunlight into chemical energy."}'
+1. Open **Swagger UI** in your browser: **http://localhost:8080/swagger**
+2. Find the **POST /documents** endpoint, click **Try it out**
+3. Paste the following JSON body and click **Execute**:
+
+```json
+{
+  "id": "short-001",
+  "text": "Photosynthesis converts sunlight into chemical energy."
+}
 ```
 
-Response:
+In the **Response body** you should see:
+
 ```json
 {
   "pointId": "abc-123...",
@@ -183,30 +189,19 @@ Response:
 
 ## Step 3 — Index a long document (multiple chunks)
 
-Create a document longer than 2000 characters:
+Using **POST /documents** in Swagger UI, index a document longer than 2000 characters. Paste a long text (or repeat a sentence many times) into the `text` field. The response should show `totalChunks > 1`.
 
-```bash
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d "{\"id\": \"long-001\", \"text\": \"$(python3 -c 'print("This is a long sentence about biology. " * 100)')\"}"
-```
-
-```powershell
-# PowerShell alternative
-$text = ("This is a long sentence about biology. " * 100)
-curl -Method Post http://localhost:8080/documents \
-  -ContentType "application/json" \
-  -Body ("{\"id\":\"long-001\",\"text\":\"$text\"}")
-```
-
-Or use any text file content. The response should show `totalChunks > 1`.
+> **Tip:** You can paste any article or paragraph text — as long as it exceeds 2000 characters, the chunker will split it automatically.
 
 ## Step 4 — Search and observe chunk results
 
-```bash
-curl -X POST http://localhost:8080/search/topk \
-  -H "Content-Type: application/json" \
-  -d '{"queryText": "biology", "k": 5}'
+In **Swagger UI**, find the **POST /search/topk** endpoint, click **Try it out**, paste the following body and click **Execute**:
+
+```json
+{
+  "queryText": "biology",
+  "k": 5
+}
 ```
 
 You may see multiple chunks from the same source document in the results, each with its own score. The payload will include `source_doc_id`, `chunk_index`, and `total_chunks`.

@@ -134,15 +134,17 @@ dotnet run
 
 ## Step 2 — Batch index several documents
 
-```bash
-curl -X POST http://localhost:8080/documents/batch \
-  -H "Content-Type: application/json" \
-  -d '[
-    {"id": "bio-001", "text": "Photosynthesis converts sunlight into energy.", "tags": {"category": "biology"}},
-    {"id": "bio-002", "text": "DNA replication copies genetic material.", "tags": {"category": "biology"}},
-    {"id": "phys-001", "text": "Quantum entanglement links particles instantly.", "tags": {"category": "physics"}},
-    {"id": "cs-001", "text": "Machine learning finds patterns in data.", "tags": {"category": "computer-science"}}
-  ]'
+1. Open **Swagger UI** in your browser: **http://localhost:8080/swagger**
+2. Find the **POST /documents/batch** endpoint, click **Try it out**
+3. Paste the following JSON array and click **Execute**:
+
+```json
+[
+  {"id": "bio-001", "text": "Photosynthesis converts sunlight into energy.", "tags": {"category": "biology"}},
+  {"id": "bio-002", "text": "DNA replication copies genetic material.", "tags": {"category": "biology"}},
+  {"id": "phys-001", "text": "Quantum entanglement links particles instantly.", "tags": {"category": "physics"}},
+  {"id": "cs-001", "text": "Machine learning finds patterns in data.", "tags": {"category": "computer-science"}}
+]
 ```
 
 Response:
@@ -157,16 +159,14 @@ Response:
 
 ## Step 3 — Test partial failure
 
-Include a bad document:
+Using **POST /documents/batch** in Swagger UI, include a bad document:
 
-```bash
-curl -X POST http://localhost:8080/documents/batch \
-  -H "Content-Type: application/json" \
-  -d '[
-    {"id": "good-doc", "text": "This document is fine."},
-    {"id": "bad-doc", "text": ""},
-    {"id": "also-good", "text": "This one is also fine."}
-  ]'
+```json
+[
+  {"id": "good-doc", "text": "This document is fine."},
+  {"id": "bad-doc", "text": ""},
+  {"id": "also-good", "text": "This one is also fine."}
+]
 ```
 
 Response:
@@ -187,14 +187,16 @@ The good documents were still indexed.
 
 ### Exercise 8.1 — Batch + search
 
-After batch indexing, search for "energy" and verify that results come from multiple documents.
+After batch indexing, use **POST /search/topk** in Swagger UI to search for `"energy"` and verify that results come from multiple documents.
 
 ### Exercise 8.2 — Batch + chat
 
-```bash
-curl -X POST http://localhost:8080/chat \
-  -H "Content-Type: application/json" \
-  -d '{"question": "Summarize the topics covered in the indexed documents"}'
+Using **POST /chat** in Swagger UI, try:
+
+```json
+{
+  "question": "Summarize the topics covered in the indexed documents"
+}
 ```
 
 The LLM should reference biology, physics, and computer science.

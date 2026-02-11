@@ -169,38 +169,48 @@ dotnet run
 
 ## Step 2 — Index some knowledge
 
-```bash
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "bio-001",
-    "text": "Photosynthesis is the process by which green plants convert sunlight into chemical energy, producing glucose and oxygen as byproducts.",
-    "tags": { "category": "biology" }
-  }'
+1. Open **Swagger UI** in your browser: **http://localhost:8080/swagger**
+2. Find the **POST /documents** endpoint, click **Try it out**
+3. Paste each JSON body below and click **Execute**:
 
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "bio-002",
-    "text": "DNA replication is the biological process of producing two identical copies of DNA from one original DNA molecule. It occurs during the S phase of the cell cycle.",
-    "tags": { "category": "biology" }
-  }'
+**Document 1:**
 
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "phys-001",
-    "text": "Quantum entanglement is a phenomenon where two particles become linked, so the quantum state of one instantly influences the other, regardless of distance.",
-    "tags": { "category": "physics" }
-  }'
+```json
+{
+  "id": "bio-001",
+  "text": "Photosynthesis is the process by which green plants convert sunlight into chemical energy, producing glucose and oxygen as byproducts.",
+  "tags": { "category": "biology" }
+}
+```
+
+**Document 2:**
+
+```json
+{
+  "id": "bio-002",
+  "text": "DNA replication is the biological process of producing two identical copies of DNA from one original DNA molecule. It occurs during the S phase of the cell cycle.",
+  "tags": { "category": "biology" }
+}
+```
+
+**Document 3:**
+
+```json
+{
+  "id": "phys-001",
+  "text": "Quantum entanglement is a phenomenon where two particles become linked, so the quantum state of one instantly influences the other, regardless of distance.",
+  "tags": { "category": "physics" }
+}
 ```
 
 ## Step 3 — Ask a question
 
-```bash
-curl -X POST http://localhost:8080/chat \
-  -H "Content-Type: application/json" \
-  -d '{"question": "How do plants produce energy from sunlight?"}'
+In **Swagger UI**, find the **POST /chat** endpoint, click **Try it out**, paste the following body and click **Execute**:
+
+```json
+{
+  "question": "How do plants produce energy from sunlight?"
+}
 ```
 
 The response includes:
@@ -222,10 +232,12 @@ The response includes:
 
 ## Step 4 — Ask something not in the index
 
-```bash
-curl -X POST http://localhost:8080/chat \
-  -H "Content-Type: application/json" \
-  -d '{"question": "What is the best pizza recipe?"}'
+Using **POST /chat** in Swagger UI, try:
+
+```json
+{
+  "question": "What is the best pizza recipe?"
+}
 ```
 
 The LLM should respond with something like *"The provided context does not contain information about pizza recipes"* — because the system prompt forbids making up facts.
@@ -236,14 +248,16 @@ The LLM should respond with something like *"The provided context does not conta
 
 ### Exercise 5.1 — Adjust K
 
-Try `"k": 1` — the model gets less context and may give a shorter answer. Try `"k": 10` — with only 3 documents, it still gets all of them.
+Using **POST /chat** in Swagger UI, try `"k": 1` — the model gets less context and may give a shorter answer. Then try `"k": 10` — with only 3 documents, it still gets all of them.
 
 ### Exercise 5.2 — Ask a cross-domain question
 
-```bash
-curl -X POST http://localhost:8080/chat \
-  -H "Content-Type: application/json" \
-  -d '{"question": "Compare biological replication with quantum physics"}'
+Using **POST /chat** in Swagger UI, try:
+
+```json
+{
+  "question": "Compare biological replication with quantum physics"
+}
 ```
 
 The model should pull from both biology and physics documents.

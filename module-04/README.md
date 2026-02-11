@@ -182,67 +182,78 @@ dotnet run
 
 ## Step 2 — Index documents with tags
 
-```bash
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "bio-001",
-    "text": "Photosynthesis converts sunlight into chemical energy in green plants.",
-    "tags": { "category": "biology", "level": "introductory" }
-  }'
+1. Open **Swagger UI** in your browser: **http://localhost:8080/swagger**
+2. Find the **POST /documents** endpoint, click **Try it out**
+3. Paste each JSON body below and click **Execute**:
 
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "phys-001",
-    "text": "Quantum entanglement links two particles across any distance.",
-    "tags": { "category": "physics", "level": "advanced" }
-  }'
+**Document 1:**
 
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "bio-002",
-    "text": "DNA replication is the biological process of producing two identical copies of DNA.",
-    "tags": { "category": "biology", "level": "intermediate" }
-  }'
+```json
+{
+  "id": "bio-001",
+  "text": "Photosynthesis converts sunlight into chemical energy in green plants.",
+  "tags": { "category": "biology", "level": "introductory" }
+}
+```
+
+**Document 2:**
+
+```json
+{
+  "id": "phys-001",
+  "text": "Quantum entanglement links two particles across any distance.",
+  "tags": { "category": "physics", "level": "advanced" }
+}
+```
+
+**Document 3:**
+
+```json
+{
+  "id": "bio-002",
+  "text": "DNA replication is the biological process of producing two identical copies of DNA.",
+  "tags": { "category": "biology", "level": "intermediate" }
+}
 ```
 
 ## Step 3 — Filtered top-K search
 
-Search for "energy" but only in biology documents:
+In **Swagger UI**, find the **POST /search/topk** endpoint, click **Try it out**, paste the following body and click **Execute**:
 
-```bash
-curl -X POST http://localhost:8080/search/topk \
-  -H "Content-Type: application/json" \
-  -d '{
-    "queryText": "energy",
-    "k": 5,
-    "tags": { "category": "biology" }
-  }'
+```json
+{
+  "queryText": "energy",
+  "k": 5,
+  "tags": { "category": "biology" }
+}
 ```
 
 The physics document is **excluded** even though "energy" might be semantically relevant to it.
 
 ## Step 4 — Threshold search
 
-Return all documents with similarity ≥ 0.4:
+In **Swagger UI**, find the **POST /search/threshold** endpoint, click **Try it out**, paste the following body and click **Execute**:
 
-```bash
-curl -X POST http://localhost:8080/search/threshold \
-  -H "Content-Type: application/json" \
-  -d '{"queryText": "biological processes", "scoreThreshold": 0.4}'
+```json
+{
+  "queryText": "biological processes",
+  "scoreThreshold": 0.4
+}
 ```
+
+All documents with similarity ≥ 0.4 are returned.
 
 ## Step 5 — Metadata-only search
 
-Browse all biology documents (no vector search involved):
+In **Swagger UI**, find the **POST /search/metadata** endpoint, click **Try it out**, paste the following body and click **Execute**:
 
-```bash
-curl -X POST http://localhost:8080/search/metadata \
-  -H "Content-Type: application/json" \
-  -d '{"tags": { "category": "biology" }}'
+```json
+{
+  "tags": { "category": "biology" }
+}
 ```
+
+This browses all biology documents without any vector search involved.
 
 ---
 
@@ -250,15 +261,34 @@ curl -X POST http://localhost:8080/search/metadata \
 
 ### Exercise 4.1 — Combine tags
 
-Filter by two tags at once: `"category": "biology"` AND `"level": "introductory"`. Only the photosynthesis document should match.
+Using **POST /search/topk** in Swagger UI, filter by two tags at once:
+
+```json
+{
+  "queryText": "energy",
+  "k": 5,
+  "tags": { "category": "biology", "level": "introductory" }
+}
+```
+
+Only the photosynthesis document should match.
 
 ### Exercise 4.2 — Empty filter
 
-Call `/search/topk` without tags — it should behave like Module 2 (return all documents ranked by similarity).
+Using **POST /search/topk** in Swagger UI, send a request without `tags`:
+
+```json
+{
+  "queryText": "energy",
+  "k": 5
+}
+```
+
+It should behave like Module 2 (return all documents ranked by similarity).
 
 ### Exercise 4.3 — Tune the threshold
 
-Try `/search/threshold` with `"scoreThreshold": 0.8` — most results will be filtered out. Then try `0.2` — you'll get almost everything. Find a sweet spot for your data.
+Using **POST /search/threshold** in Swagger UI, try `"scoreThreshold": 0.8` — most results will be filtered out. Then try `0.2` — you'll get almost everything. Find a sweet spot for your data.
 
 ### Exercise 4.4 — Inspect the filter factory
 
