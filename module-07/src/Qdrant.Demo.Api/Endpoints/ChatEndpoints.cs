@@ -1,10 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
-using OpenAI.Chat;
+using Microsoft.Extensions.AI;
 using Qdrant.Client;
 using Qdrant.Demo.Api.Extensions;
 using Qdrant.Demo.Api.Models;
 using Qdrant.Demo.Api.Services;
 using static Qdrant.Demo.Api.Models.PayloadKeys;
+using ChatResponse = Qdrant.Demo.Api.Models.ChatResponse;
 
 namespace Qdrant.Demo.Api.Endpoints;
 
@@ -27,7 +28,7 @@ public static class ChatEndpoints
             QdrantClient qdrant,
             IEmbeddingService embeddings,
             IQdrantFilterFactory filters,
-            ChatClient chatClient,
+            IChatClient chatClient,
             CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(req.Question))
@@ -73,8 +74,8 @@ public static class ChatEndpoints
 
                 List<ChatMessage> messages =
                 [
-                    new SystemChatMessage(systemPrompt),
-                    new UserChatMessage(
+                    new ChatMessage(ChatRole.System, systemPrompt),
+                    new ChatMessage(ChatRole.User,
                         $"""
                         Context:
                         {context}
@@ -83,8 +84,8 @@ public static class ChatEndpoints
                         """)
                 ];
 
-                var completion = await chatClient.CompleteChatAsync(messages, cancellationToken: ct);
-                var answer = completion.Value.Content[0].Text;
+                var response = await chatClient.GetResponseAsync(messages, cancellationToken: ct);
+                var answer = response.Text;
 
                 return Results.Ok(new ChatResponse(answer, sources));
             }

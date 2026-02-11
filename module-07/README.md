@@ -17,7 +17,7 @@ By the end of this module you will have:
 
 ### Why chunk?
 
-Embedding models have a **token limit** (OpenAI's `text-embedding-3-small` allows 8,191 tokens). If your document is longer than that, the API call fails. Even shorter documents can produce lower-quality embeddings when the text is too long — the model has to compress too much meaning into a single vector.
+Embedding models have a **token limit** (e.g. `nomic-embed-text` has a context window of 8,192 tokens). If your document is longer than that, the API call fails. Even shorter documents can produce lower-quality embeddings when the text is too long — the model has to compress too much meaning into a single vector.
 
 **Chunking** splits a long document into smaller pieces, each of which gets its own embedding vector. This means:
 - Each chunk is within the model's token limit
@@ -26,7 +26,7 @@ Embedding models have a **token limit** (OpenAI's `text-embedding-3-small` allow
 
 ### Character-based approach
 
-Our `TextChunker` uses **character counts** instead of token counts. Since OpenAI's tokenizer averages ~4 characters per English token, 2000 characters ≈ 500 tokens — safely under the 8,191 limit.
+Our `TextChunker` uses **character counts** instead of token counts. Since typical tokenizers average ~4 characters per English token, 2000 characters ≈ 500 tokens — safely under the 8,191 limit.
 
 ### Sentence-boundary awareness
 

@@ -53,13 +53,13 @@ This is a hard-coded default in Module 5. In Module 6 you'll make it customizabl
 
 | New file | Purpose |
 |----------|---------|
-| `Endpoints/ChatEndpoints.cs` | `POST /chat` — embed question → search → build context → call OpenAI → return answer + sources |
+| `Endpoints/ChatEndpoints.cs` | `POST /chat` — embed question → search → build context → call LLM → return answer + sources |
 
 | Changed file | What changed |
 |-------------|-------------|
 | `Models/Requests.cs` | Added `ChatRequest(Question, K)`, `ChatResponse`, `ChatSource` records |
-| `Program.cs` | Added `ChatClient` registration, `chatModel` config, `MapChatEndpoints()` |
-| `docker-compose.yml` | Added `OPENAI_CHAT_MODEL` environment variable |
+| `Program.cs` | Added `IChatClient` registration, `chatModel` config, `MapChatEndpoints()` |
+| `docker-compose.yml` | Added `CHAT_MODEL` environment variable; Ollama now also pulls `llama3.2` (~2 GB on first run) |
 
 ---
 
@@ -191,6 +191,6 @@ At this point you have:
 - [x] A working `POST /chat` endpoint — full RAG pipeline
 - [x] Retrieval + generation in a single API call
 - [x] LLM grounded in your indexed documents (no hallucination)
-- [x] Understanding of: RAG pattern, system prompts, context assembly, ChatClient
+- [x] Understanding of: RAG pattern, system prompts, context assembly, IChatClient
 
 **Next →** [Module 6 — Advanced Chat](../module-06/README.md)

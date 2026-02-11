@@ -168,7 +168,7 @@ Congratulations — you've completed the entire workshop! Here's everything you 
 ### What to explore next
 
 - **Token-aware chunking** — Replace the character-based chunker with `Microsoft.ML.Tokenizers` for exact token counts
-- **Streaming chat** — Use `ChatClient.CompleteChatStreamingAsync` for real-time token streaming
+- **Streaming chat** — Use `IChatClient.GetStreamingResponseAsync` for real-time token streaming
 - **Named vectors** — Store multiple embedding models in the same collection
 - **Hybrid search** — Combine dense (semantic) and sparse (keyword) vectors
 - **Web UI** — Build a React/Blazor frontend that calls these endpoints

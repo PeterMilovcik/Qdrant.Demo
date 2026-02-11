@@ -1,6 +1,6 @@
+using Microsoft.Extensions.AI;
+using OllamaSharp;
 using Qdrant.Client;
-using OpenAI.Chat;
-using OpenAI.Embeddings;
 using Qdrant.Demo.Api.Endpoints;
 using Qdrant.Demo.Api.Services;
 
@@ -13,11 +13,10 @@ var qdrantHost     = config["QDRANT_HOST"]       ?? config["Qdrant:Host"]       
 var qdrantHttpPort = int.Parse(config["QDRANT_HTTP_PORT"] ?? config["Qdrant:HttpPort"] ?? "6333");
 var qdrantGrpcPort = int.Parse(config["QDRANT_GRPC_PORT"] ?? config["Qdrant:GrpcPort"] ?? "6334");
 var collectionName = config["QDRANT_COLLECTION"] ?? config["Qdrant:Collection"] ?? "documents";
-var embeddingDim   = int.Parse(config["EMBEDDING_DIM"]    ?? config["Qdrant:EmbeddingDim"] ?? "1536");
-var embeddingModel = config["OPENAI_EMBEDDING_MODEL"] ?? config["OpenAI:EmbeddingModel"] ?? "text-embedding-3-small";
-var chatModel      = config["OPENAI_CHAT_MODEL"]      ?? config["OpenAI:ChatModel"]      ?? "gpt-4.1-nano";
-var openAiKey      = config["OPENAI_API_KEY"]
-    ?? throw new InvalidOperationException("OPENAI_API_KEY is missing");
+var embeddingDim   = int.Parse(config["EMBEDDING_DIM"]    ?? config["Qdrant:EmbeddingDim"] ?? "768");
+var embeddingModel = config["EMBEDDING_MODEL"] ?? config["Ollama:EmbeddingModel"] ?? "nomic-embed-text";
+var chatModel      = config["CHAT_MODEL"]      ?? config["Ollama:ChatModel"]      ?? "llama3.2";
+var llmEndpoint    = config["LLM_ENDPOINT"]   ?? config["Ollama:Endpoint"]       ?? "http://localhost:11434";
 
 // ---- service registration ----
 builder.Services.AddEndpointsApiExplorer();
@@ -27,8 +26,10 @@ builder.Services.AddSwaggerGen(opts =>
 });
 
 builder.Services.AddSingleton(_ => new QdrantClient(qdrantHost, qdrantGrpcPort));
-builder.Services.AddSingleton(_ => new EmbeddingClient(embeddingModel, openAiKey));
-builder.Services.AddSingleton(_ => new ChatClient(chatModel, openAiKey));
+builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
+    _ => new OllamaApiClient(new Uri(llmEndpoint), embeddingModel));
+builder.Services.AddSingleton<IChatClient>(
+    _ => new OllamaApiClient(new Uri(llmEndpoint), chatModel));
 builder.Services.AddSingleton<IEmbeddingService, EmbeddingService>();
 builder.Services.AddSingleton<IQdrantFilterFactory, QdrantFilterFactory>();
 builder.Services.AddHttpClient("qdrant-http", http =>

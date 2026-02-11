@@ -1,17 +1,19 @@
-using OpenAI.Embeddings;
+using Microsoft.Extensions.AI;
 
 namespace Qdrant.Demo.Api.Services;
 
 /// <summary>
 /// Production implementation of <see cref="IEmbeddingService"/>
-/// backed by the OpenAI embeddings API.
+/// backed by a local Ollama embedding model via Microsoft.Extensions.AI.
 /// </summary>
-public sealed class EmbeddingService(EmbeddingClient client) : IEmbeddingService
+public sealed class EmbeddingService(
+    IEmbeddingGenerator<string, Embedding<float>> generator) : IEmbeddingService
 {
     /// <inheritdoc />
     public async Task<float[]> EmbedAsync(string text, CancellationToken ct = default)
     {
-        var result = await client.GenerateEmbeddingAsync(text, cancellationToken: ct);
-        return result.Value.ToFloats().ToArray();
+        var embedding = await generator.GenerateAsync(
+            [text], cancellationToken: ct);
+        return embedding[0].Vector.ToArray();
     }
 }

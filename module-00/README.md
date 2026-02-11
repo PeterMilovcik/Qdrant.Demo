@@ -1,6 +1,6 @@
 # Module 0 — Setup & Orientation
 
-> **~15 min** · No OpenAI key needed yet · No code to write
+> **~15 min** · No LLM needed yet · No code to write
 
 ## Learning objective
 
@@ -30,7 +30,7 @@ Keep these three things visible throughout the workshop:
 **Qdrant** is an open-source vector database. It stores **points** — each point has:
 
 - A **unique id** (UUID or integer)
-- A **vector** (an array of floats — we'll use 1 536 dimensions)
+- A **vector** (an array of floats — we'll use 768 dimensions)
 - An optional **payload** (key/value metadata)
 
 Points live inside **collections**. A collection is like a database table — all vectors in a collection must have the same dimensionality.
@@ -46,7 +46,7 @@ The `Program.cs` in this module is minimal:
 - Starts `QdrantBootstrapper` — a background service that creates the `documents` collection at startup (with retries, since Qdrant may not be ready immediately)
 - Exposes Swagger UI, a root info endpoint (`GET /`), and a health check (`GET /health`)
 
-No OpenAI, no embeddings, no documents yet — just infrastructure.
+No LLM, no embeddings, no documents yet — just infrastructure.
 
 ---
 
@@ -115,7 +115,7 @@ Try calling `GET /` from Swagger — you should see the configuration JSON.
 Go back to **http://localhost:6333/dashboard**. You should now see a `documents` collection listed. Click on it to explore — it's empty (0 points), but the collection is ready.
 
 **Notice:**
-- **Dimension:** 1536 (matching `text-embedding-3-small`)
+- **Dimension:** 768 (matching `nomic-embed-text`)
 - **Distance:** Cosine (we'll use cosine similarity for searching)
 
 ## Step 4 — Inspect the code
@@ -138,7 +138,7 @@ Open these files and read through them:
 Open the Qdrant Dashboard and confirm:
 - The `documents` collection exists
 - It has 0 points
-- The vector dimension is 1536
+- The vector dimension is 768
 - The distance metric is Cosine
 
 ### Exercise 0.2 — Call the info endpoint
@@ -159,7 +159,7 @@ Expected response:
     "http": 6333,
     "grpc": 6334,
     "collection": "documents",
-    "embeddingDim": 1536
+    "embeddingDim": 768
   }
 }
 ```

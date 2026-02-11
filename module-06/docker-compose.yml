@@ -1,4 +1,29 @@
 services:
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["sh", "-c", "ollama pull nomic-embed-text && ollama pull llama3.2"]
+    environment:
+      OLLAMA_HOST: ollama:11434
+    networks:
+      - backend
+
   qdrant:
     image: qdrant/qdrant:v1.16.3
     volumes:
@@ -23,20 +48,19 @@ services:
       QDRANT_HTTP_PORT: "6333"
       QDRANT_GRPC_PORT: "6334"
 
-      # OpenAI key (passed from host env)
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-
       # App settings
       QDRANT_COLLECTION: documents
-      EMBEDDING_DIM: "1536"
+      EMBEDDING_DIM: "768"
 
-      # OpenAI embedding model
-      OPENAI_EMBEDDING_MODEL: text-embedding-3-small
-
-      # OpenAI chat model
-      OPENAI_CHAT_MODEL: gpt-4.1-nano
+      # Ollama settings
+      LLM_ENDPOINT: http://ollama:11434
+      EMBEDDING_MODEL: nomic-embed-text
+      CHAT_MODEL: llama3.2
     depends_on:
-      - qdrant
+      ollama-pull:
+        condition: service_completed_successfully
+      qdrant:
+        condition: service_started
     ports:
       - "8080:8080"
     networks:
@@ -44,6 +68,7 @@ services:
 
 volumes:
   qdrant_storage:
+  ollama_data:
 
 networks:
   backend:

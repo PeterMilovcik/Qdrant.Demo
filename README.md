@@ -1,6 +1,6 @@
 ﻿# Qdrant.Demo — RAG Workshop
 
-A hands-on **.NET 10 + Qdrant + OpenAI** workshop that teaches how to build a complete **Retrieval-Augmented Generation (RAG)** solution from scratch. You'll start with an empty API, and module by module, add indexing, search, metadata filtering, chat, chunking, and batch operations — learning one concept at a time.
+A hands-on **.NET 10 + Qdrant + Ollama** workshop that teaches how to build a complete **Retrieval-Augmented Generation (RAG)** solution from scratch. You'll start with an empty API, and module by module, add indexing, search, metadata filtering, chat, chunking, and batch operations — learning one concept at a time.
 
 ```
 ┌──────────────┐      embed       ┌───────────────┐
@@ -17,7 +17,7 @@ A hands-on **.NET 10 + Qdrant + OpenAI** workshop that teaches how to build a co
                                   └───────────────┘      │  context
                                                          ▼
                                                   ┌──────────────┐
-                                                  │  OpenAI LLM  │
+                                                  │  Ollama LLM  │
                                                   │  (chat)      │
                                                   └──────┬───────┘
                                                          ▼
@@ -55,12 +55,11 @@ The [`completed/`](completed/) folder contains the final state with **all** feat
 
 | Tool | Version | Why |
 |------|---------|-----|
-| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | 4.x+ | Runs the Qdrant vector database |
+| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | 4.x+ | Runs Qdrant vector database and Ollama local LLM |
 | [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | 10.0+ | Build & run the API locally |
-| [OpenAI API key](https://platform.openai.com/api-keys) | — | Embeddings + chat completion |
 | `curl` or similar HTTP client | — | Test the API endpoints |
 
-> **💰 Cost note:** A full workshop run costs **< $0.01** in OpenAI API usage.
+> **💰 Cost note:** Ollama runs locally — no API keys, no usage fees. The first run downloads models (~274 MB for nomic-embed-text, ~2 GB for llama3.2) and may take a few minutes.
 
 ---
 
@@ -71,13 +70,7 @@ The [`completed/`](completed/) folder contains the final state with **all** feat
 git clone https://github.com/PeterMilovcik/Qdrant.Demo.git
 cd Qdrant.Demo
 
-# 2. Set your OpenAI key
-# PowerShell:
-$env:OPENAI_API_KEY = "sk-..."
-# Linux/macOS:
-export OPENAI_API_KEY="sk-..."
-
-# 2.5 (Optional) Use a fixed local API port
+# 2. (Optional) Use a fixed local API port
 # PowerShell:
 $env:ASPNETCORE_URLS = "http://localhost:8080"
 # Linux/macOS:
@@ -142,7 +135,7 @@ This workshop implements **all three steps** across the modules above.
 | Term | Definition |
 |------|------------|
 | **Embedding** | A fixed-length array of floats that represents the semantic meaning of text. Similar texts produce similar vectors. |
-| **Vector** | A list of numbers (e.g. 1 536 floats). In this context, it is the embedding of a piece of text. |
+| **Vector** | A list of numbers (e.g. 768 floats). In this context, it is the embedding of a piece of text. |
 | **Cosine similarity** | A measure of how similar two vectors are, ranging from 0 (unrelated) to 1 (identical meaning). |
 | **Collection** | A Qdrant container that holds vectors of the same dimensionality — analogous to a database table. |
 | **Point** | A single entry in a Qdrant collection: a unique id + a vector + an optional payload (metadata). |
@@ -162,8 +155,8 @@ This workshop implements **all three steps** across the modules above.
 |-----------|------|
 | **Qdrant** (Docker) | Open-source vector database — stores embeddings + payload metadata |
 | **.NET 10 Web API** | Minimal API that exposes indexing, search, and chat endpoints |
-| **OpenAI Embeddings** | `text-embedding-3-small` model (1 536 dimensions) converts text → vectors |
-| **OpenAI Chat** | `gpt-4.1-nano` model generates answers grounded in retrieved documents |
+| **Ollama Embeddings** | `nomic-embed-text` model (768 dimensions) converts text → vectors |
+| **Ollama Chat** | `llama3.2` model generates answers grounded in retrieved documents |
 | **Docker Compose** | Runs Qdrant (and optionally the API) in containers |
 
 ---
@@ -202,7 +195,7 @@ See each module's README for detailed request/response examples.
 | `Models/Requests.cs` | All DTOs — upsert, search, chat requests/responses |
 | `Models/ChunkingOptions.cs` | Chunking configuration (max size, overlap) |
 | `Models/TextChunk.cs` | A single chunk produced by the text chunker |
-| `Services/EmbeddingService.cs` | Text → vector embedding via OpenAI |
+| `Services/EmbeddingService.cs` | Text → vector embedding via Ollama (`IEmbeddingGenerator<string, Embedding<float>>`) |
 | `Services/DocumentIndexer.cs` | Embed + chunk + upsert orchestration |
 | `Services/QdrantFilterFactory.cs` | Tag dictionary → Qdrant filter (gRPC + REST) |
 | `Services/QdrantBootstrapper.cs` | Creates the Qdrant collection at startup with retries |
@@ -220,12 +213,10 @@ See each module's README for detailed request/response examples.
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
-| `OPENAI_API_KEY is missing` at startup | Env var not set | `$env:OPENAI_API_KEY = "sk-..."` before running |
 | `docker compose up` hangs | Docker Desktop not running | Start Docker Desktop, wait for engine |
 | `[bootstrap] attempt N failed` repeating | Qdrant not ready yet | Wait — it retries 30 times |
 | Search returns `[]` | No documents indexed | Index documents first with `POST /documents` |
 | Tag filters return no results | No payload index on that field | Create a `keyword` index via Qdrant Dashboard |
-| 500 with `AuthenticationException` | Invalid OpenAI key | Check at [platform.openai.com](https://platform.openai.com/api-keys) |
 
 ---
 
@@ -233,9 +224,9 @@ See each module's README for detailed request/response examples.
 
 | Extension | Description |
 |-----------|-------------|
-| **Streaming chat** | Add `POST /chat/stream` with Server-Sent Events via `CompleteChatStreamingAsync()` |
+| **Streaming chat** | Add `POST /chat/stream` with Server-Sent Events via `GetStreamingResponseAsync()` |
 | **Multi-turn conversation** | Extend `ChatRequest` with a `History` field for follow-up questions |
 | **Different vector DB** | Replace `QdrantClient` with Pinecone, Weaviate, Milvus, or ChromaDB SDK |
-| **Model switching** | Change `OPENAI_EMBEDDING_MODEL` / `OPENAI_CHAT_MODEL` env vars |
+| **Model switching** | Change `EMBEDDING_MODEL` / `CHAT_MODEL` env vars (and set `LLM_ENDPOINT` if needed) |
 | **Token-based chunking** | Replace character-based chunker with `Microsoft.ML.Tokenizers` for precision |
 | **Custom metadata schemas** | Adapt tags/properties for your domain (e-commerce, support tickets, etc.) |
