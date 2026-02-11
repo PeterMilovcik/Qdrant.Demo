@@ -40,13 +40,12 @@ Qdrant applies the tag filter **before** computing similarity. This means:
 
 `POST /search/metadata` doesn't use vectors at all — it scrolls through documents that match the tag filters. This is useful for browsing/exporting a subset of your collection.
 
-This endpoint uses Qdrant's REST API (via `HttpClient`) instead of the gRPC client, because the scroll API isn't directly exposed in the gRPC client.
+This endpoint uses Qdrant's gRPC `ScrollAsync` method to retrieve matching points without computing vector similarity.
 
 ### QdrantFilterFactory
 
 The `QdrantFilterFactory` is a small service that converts a `Dictionary<string, string>` of tags into two filter formats:
-- **gRPC filter** — used by the managed `QdrantClient` for vector searches
-- **REST filter** — used by `HttpClient` for the scroll endpoint
+- **gRPC filter** — used by `QdrantClient` for vector searches **and** the scroll endpoint
 
 Each tag becomes a `MatchKeyword` condition on the `tag.{key}` payload field. Multiple tags are combined with **AND** logic (`Must` clause).
 
@@ -66,7 +65,7 @@ Each tag becomes a `MatchKeyword` condition on the `tag.{key}` payload field. Mu
 |-------------|-------------|
 | `Models/Requests.cs` | Added `ThresholdSearchRequest` and `MetadataSearchRequest` records |
 | `Endpoints/SearchEndpoints.cs` | Injects `IQdrantFilterFactory`; passes filter to top-K; adds `/search/threshold` and `/search/metadata` |
-| `Program.cs` | Registers `IQdrantFilterFactory` and `HttpClient("qdrant-http")` |
+| `Program.cs` | Registers `IQdrantFilterFactory` |
 | `Services/DocumentIndexer.cs` | Switched to `DateTime.UtcNow.ToUnixMs()` extension method |
 
 ### Code walkthrough
@@ -91,7 +90,7 @@ public Filter? CreateGrpcFilter(Dictionary<string, string>? tags)
 }
 ```
 
-Returning `null` when there are no tags means "no filter" — the search considers all documents. The factory also has a `CreateScrollFilter` method that builds the equivalent filter as an anonymous object for the REST scroll API.
+Returning `null` when there are no tags means "no filter" — the search considers all documents.
 
 #### Filtered top-K search — [`SearchEndpoints.cs`](src/Qdrant.Demo.Api/Endpoints/SearchEndpoints.cs)
 
@@ -131,25 +130,26 @@ The `Limit` parameter (default 100) acts as a safety cap to prevent unbounded re
 
 #### Metadata-only scroll — [`SearchEndpoints.cs`](src/Qdrant.Demo.Api/Endpoints/SearchEndpoints.cs)
 
-The metadata endpoint doesn't use vectors at all — it calls Qdrant's REST scroll API via `HttpClient`:
+The metadata endpoint doesn't use vectors at all — it calls Qdrant's gRPC `ScrollAsync` to walk through matching points:
 
 ```csharp
-var http = httpFactory.CreateClient("qdrant-http");
-var filter = filters.CreateScrollFilter(req.Tags);
+var filter = filters.CreateGrpcFilter(req.Tags);
 
-var body = new
-{
-    limit = req.Limit,
-    with_payload = true,
-    with_vector = false,
-    filter
-};
+var scroll = await qdrant.ScrollAsync(
+    collectionName: collectionName,
+    filter: filter,
+    limit: (uint)req.Limit,
+    payloadSelector: true,
+    cancellationToken: ct);
 
-var resp = await http.PostAsJsonAsync(
-    $"collections/{collectionName}/points/scroll", body, ct);
+var results = scroll.Result.Select(p => new SearchHit(
+    Id: p.Id?.Uuid ?? p.Id?.Num.ToString(),
+    Score: 0f,
+    Payload: p.Payload.ToDictionary()
+));
 ```
 
-`with_vector = false` keeps the response small — you only get point ids and payloads, not the full 1536-float vectors.
+`payloadSelector: true` returns only point ids and payloads — no vectors are transferred, keeping the response small.
 
 ---
 
@@ -312,7 +312,7 @@ At this point you have:
 - [x] Three search strategies: top-K, threshold, metadata-only
 - [x] Tag filtering on all search endpoints
 - [x] `QdrantFilterFactory` converting tag dictionaries to Qdrant filter objects
-- [x] Understanding of: pre-filtering, threshold search, scroll API, gRPC vs REST filters
+- [x] Understanding of: pre-filtering, threshold search, scroll API, gRPC filters
 
 ## 🧹 Clean Up
 

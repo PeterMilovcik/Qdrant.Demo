@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Qdrant.Client;
 using Qdrant.Demo.Api.Extensions;
@@ -83,30 +82,28 @@ public static class SearchEndpoints
         // ─────────────────────────────────────────────────────
         app.MapPost("/search/metadata", async (
             [FromBody] MetadataSearchRequest req,
-            IHttpClientFactory httpFactory,
+            QdrantClient qdrant,
             IQdrantFilterFactory filters,
             CancellationToken ct) =>
         {
             try
             {
-                var http = httpFactory.CreateClient("qdrant-http");
+                var filter = filters.CreateGrpcFilter(req.Tags);
 
-                var filter = filters.CreateScrollFilter(req.Tags);
+                var scroll = await qdrant.ScrollAsync(
+                    collectionName: collectionName,
+                    filter: filter,
+                    limit: (uint)req.Limit,
+                    payloadSelector: true,
+                    cancellationToken: ct);
 
-                var body = new
-                {
-                    limit = req.Limit,
-                    with_payload = true,
-                    with_vector = false,
-                    filter
-                };
+                var results = scroll.Result.Select(p => new SearchHit(
+                    Id: p.Id?.Uuid ?? p.Id?.Num.ToString(),
+                    Score: 0f,
+                    Payload: p.Payload.ToDictionary()
+                ));
 
-                var resp = await http.PostAsJsonAsync(
-                    $"collections/{collectionName}/points/scroll", body, ct);
-                resp.EnsureSuccessStatusCode();
-
-                var json = await resp.Content.ReadFromJsonAsync<JsonElement>(ct);
-                return Results.Json(json);
+                return Results.Ok(results);
             }
             catch (Exception ex)
             {

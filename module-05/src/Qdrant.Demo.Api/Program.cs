@@ -33,10 +33,6 @@ builder.Services.AddSingleton<IChatClient>(
     openAi.GetChatClient(chatModel).AsIChatClient());
 builder.Services.AddSingleton<IEmbeddingService, EmbeddingService>();
 builder.Services.AddSingleton<IQdrantFilterFactory, QdrantFilterFactory>();
-builder.Services.AddHttpClient("qdrant-http", http =>
-{
-    http.BaseAddress = new Uri($"http://{qdrantHost}:{qdrantHttpPort}/");
-});
 
 builder.Services.AddHostedService(sp =>
     new QdrantBootstrapper(
