@@ -109,14 +109,20 @@ In **Swagger UI**, find the **POST /search/topk** endpoint, click **Try it out**
 In the response payload you should now see:
 
 ```json
-{
-  "text": "Photosynthesis is the process...",
-  "indexed_at_ms": 1718500000000,
-  "tag.category": "biology",
-  "tag.level": "introductory",
-  "prop.source_url": "https://example.com/bio",
-  "prop.author": "Dr. Green"
-}
+[
+  {
+    "id": "6b6492a2-38cb-3f55-a58f-47956db480ee",
+    "score": 0.5855994,
+    "payload": {
+      "indexed_at_ms": 1770836017589,
+      "prop.source_url": "https://example.com/bio",
+      "tag.level": "introductory",
+      "prop.author": "Dr. Green",
+      "text": "Photosynthesis is the process by which green plants convert sunlight into chemical energy.",
+      "tag.category": "biology"
+    }
+  }
+]
 ```
 
 The tags and properties are stored alongside the vector — ready for filtering in the next module.
