@@ -45,9 +45,9 @@ docker pull qdrant/qdrant:v1.16.3
 ### 3. Verify your setup
 
 ```bash
-docker --version          # Docker version 27.x or later
-dotnet --version          # 10.0.101 or later
-docker images | grep qdrant   # Should show qdrant/qdrant v1.16.3
+docker --version                            # Docker version 27.x or later
+dotnet --version                            # 10.0.101 or later
+docker images qdrant/qdrant --format "table {{.Repository}}\t{{.Tag}}"   # Should show v1.16.3
 ```
 
 If all three checks pass, you're ready!

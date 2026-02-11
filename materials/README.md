@@ -51,7 +51,7 @@ export OPENAI_API_KEY="sk-..."
 ### 4. Verify
 
 ```bash
-docker images | grep qdrant         # should show qdrant/qdrant v1.16.3
+docker images qdrant/qdrant --format "table {{.Repository}}\t{{.Tag}}"   # should show v1.16.3
 dotnet --version                     # should show 10.0.x
 echo $OPENAI_API_KEY                 # should show sk-...
 ```
