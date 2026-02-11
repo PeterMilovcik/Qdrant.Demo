@@ -82,25 +82,28 @@ dotnet run
 
 ## Step 2 — Index a document with metadata
 
-```bash
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "bio-001",
-    "text": "Photosynthesis is the process by which green plants convert sunlight into chemical energy.",
-    "tags": { "category": "biology", "level": "introductory" },
-    "properties": { "source_url": "https://example.com/bio", "author": "Dr. Green" }
-  }'
+1. Open **Swagger UI** in your browser: **http://localhost:8080/swagger**
+2. Find the **POST /documents** endpoint, click **Try it out**
+3. Paste the following JSON body and click **Execute**:
+
+```json
+{
+  "id": "bio-001",
+  "text": "Photosynthesis is the process by which green plants convert sunlight into chemical energy.",
+  "tags": { "category": "biology", "level": "introductory" },
+  "properties": { "source_url": "https://example.com/bio", "author": "Dr. Green" }
+}
 ```
 
 ## Step 3 — Verify the metadata was stored
 
-Search for the document and inspect the payload:
+In **Swagger UI**, find the **POST /search/topk** endpoint, click **Try it out**, paste the following body and click **Execute**:
 
-```bash
-curl -X POST http://localhost:8080/search/topk \
-  -H "Content-Type: application/json" \
-  -d '{"queryText": "photosynthesis", "k": 1}'
+```json
+{
+  "queryText": "photosynthesis",
+  "k": 1
+}
 ```
 
 In the response payload you should now see:
@@ -124,28 +127,41 @@ The tags and properties are stored alongside the vector — ready for filtering 
 
 ### Exercise 3.1 — Index several documents with different tags
 
-```bash
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "phys-001",
-    "text": "Quantum entanglement links two particles so the state of one instantly affects the other.",
-    "tags": { "category": "physics", "level": "advanced" },
-    "properties": { "source_url": "https://example.com/physics" }
-  }'
+Using **POST /documents** in Swagger UI, index these two documents (paste each body and click **Execute**):
 
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "cs-001",
-    "text": "Machine learning algorithms learn patterns from data without being explicitly programmed.",
-    "tags": { "category": "computer-science", "level": "intermediate" }
-  }'
+**Document 1:**
+
+```json
+{
+  "id": "phys-001",
+  "text": "Quantum entanglement links two particles so the state of one instantly affects the other.",
+  "tags": { "category": "physics", "level": "advanced" },
+  "properties": { "source_url": "https://example.com/physics" }
+}
+```
+
+**Document 2:**
+
+```json
+{
+  "id": "cs-001",
+  "text": "Machine learning algorithms learn patterns from data without being explicitly programmed.",
+  "tags": { "category": "computer-science", "level": "intermediate" }
+}
 ```
 
 ### Exercise 3.2 — Observe tags in search results
 
-Search for "particles linked together" and check the response payload. The physics document should rank highest — and you should see its `tag.category` = `"physics"` in the payload.
+Using **POST /search/topk** in Swagger UI, search with:
+
+```json
+{
+  "queryText": "particles linked together",
+  "k": 3
+}
+```
+
+The physics document should rank highest — and you should see its `tag.category` = `"physics"` in the payload.
 
 ### Exercise 3.3 — Think ahead
 
