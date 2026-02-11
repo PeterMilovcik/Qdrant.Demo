@@ -69,6 +69,88 @@ Each tag becomes a `MatchKeyword` condition on the `tag.{key}` payload field. Mu
 | `Program.cs` | Registers `IQdrantFilterFactory` and `HttpClient("qdrant-http")` |
 | `Services/DocumentIndexer.cs` | Switched to `DateTime.UtcNow.ToUnixMs()` extension method |
 
+### Code walkthrough
+
+#### The filter factory — [`QdrantFilterFactory.cs`](src/Qdrant.Demo.Api/Services/QdrantFilterFactory.cs)
+
+This is the bridge between the simple `Dictionary<string, string>` tags from the request body and the filter objects that Qdrant understands. Each tag becomes a `MatchKeyword` condition on the `tag.{key}` payload field, combined with AND logic:
+
+```csharp
+public Filter? CreateGrpcFilter(Dictionary<string, string>? tags)
+{
+    if (tags is null || tags.Count == 0) return null;
+
+    var filter = new Filter();
+
+    foreach (var (key, value) in tags)
+    {
+        filter.Must.Add(MatchKeyword($"tag.{key}", value));
+    }
+
+    return filter;
+}
+```
+
+Returning `null` when there are no tags means "no filter" — the search considers all documents. The factory also has a `CreateScrollFilter` method that builds the equivalent filter as an anonymous object for the REST scroll API.
+
+#### Filtered top-K search — [`SearchEndpoints.cs`](src/Qdrant.Demo.Api/Endpoints/SearchEndpoints.cs)
+
+The top-K endpoint now injects `IQdrantFilterFactory` and passes the filter to `qdrant.SearchAsync`:
+
+```csharp
+var vector = await embeddings.EmbedAsync(req.QueryText, ct);
+var filter = filters.CreateGrpcFilter(req.Tags);
+
+var hits = await qdrant.SearchAsync(
+    collectionName: collectionName,
+    vector: vector,
+    limit: (ulong)req.K,
+    filter: filter,
+    payloadSelector: true,
+    cancellationToken: ct);
+```
+
+Qdrant applies the filter **before** similarity — only matching documents are scored.
+
+#### Threshold search — [`SearchEndpoints.cs`](src/Qdrant.Demo.Api/Endpoints/SearchEndpoints.cs)
+
+Instead of a fixed K, the threshold endpoint passes a `scoreThreshold` parameter. Qdrant returns all points whose cosine similarity is at or above the threshold:
+
+```csharp
+var hits = await qdrant.SearchAsync(
+    collectionName: collectionName,
+    vector: vector,
+    limit: (ulong)req.Limit,
+    filter: filter,
+    scoreThreshold: req.ScoreThreshold,
+    payloadSelector: true,
+    cancellationToken: ct);
+```
+
+The `Limit` parameter (default 100) acts as a safety cap to prevent unbounded results.
+
+#### Metadata-only scroll — [`SearchEndpoints.cs`](src/Qdrant.Demo.Api/Endpoints/SearchEndpoints.cs)
+
+The metadata endpoint doesn't use vectors at all — it calls Qdrant's REST scroll API via `HttpClient`:
+
+```csharp
+var http = httpFactory.CreateClient("qdrant-http");
+var filter = filters.CreateScrollFilter(req.Tags);
+
+var body = new
+{
+    limit = req.Limit,
+    with_payload = true,
+    with_vector = false,
+    filter
+};
+
+var resp = await http.PostAsJsonAsync(
+    $"collections/{collectionName}/points/scroll", body, ct);
+```
+
+`with_vector = false` keeps the response small — you only get point ids and payloads, not the full 1536-float vectors.
+
 ---
 
 ## Step 1 — Start Qdrant and run the API

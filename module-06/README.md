@@ -59,6 +59,62 @@ The `scoreThreshold` field excludes low-similarity documents from the context wi
 
 No new files — this is a refinement of the existing chat endpoint.
 
+### Code walkthrough
+
+#### Extended chat request — [`Requests.cs`](src/Qdrant.Demo.Api/Models/Requests.cs)
+
+The `ChatRequest` record gains three new optional parameters:
+
+```csharp
+public record ChatRequest(
+    string Question,
+    int K = 5,
+    float? ScoreThreshold = null,
+    Dictionary<string, string>? Tags = null,
+    string? SystemPrompt = null
+);
+```
+
+`ScoreThreshold` excludes low-relevance documents, `Tags` filters by metadata, and `SystemPrompt` lets the caller set the LLM's persona. All are optional — existing callers continue to work unchanged.
+
+#### Applying the controls — [`ChatEndpoints.cs`](src/Qdrant.Demo.Api/Endpoints/ChatEndpoints.cs)
+
+The retrieval step now incorporates all three controls:
+
+```csharp
+// 2. Retrieve the top-K most similar documents
+var filter = filters.CreateGrpcFilter(req.Tags);
+
+var hits = await qdrant.SearchAsync(
+    collectionName: collectionName,
+    vector: vector,
+    limit: (ulong)req.K,
+    filter: filter,
+    scoreThreshold: req.ScoreThreshold,
+    payloadSelector: true,
+    cancellationToken: ct);
+```
+
+And the system prompt is now caller-controlled with a sensible fallback:
+
+```csharp
+var systemPrompt = req.SystemPrompt ?? DefaultSystemPrompt;
+
+List<ChatMessage> messages =
+[
+    new ChatMessage(ChatRole.System, systemPrompt),
+    new ChatMessage(ChatRole.User,
+        $"""
+        Context:
+        {context}
+
+        Question: {req.Question}
+        """)
+];
+```
+
+The same `DefaultSystemPrompt` from Module 5 is used when the caller doesn't provide one — backward compatible by design.
+
 ---
 
 ## Step 1 — Start Qdrant and run the API

@@ -61,6 +61,81 @@ This is a hard-coded default in Module 5. In Module 6 you'll make it customizabl
 | `Program.cs` | Added `IChatClient` registration, `chatModel` config, `MapChatEndpoints()` |
 | `docker-compose.yml` | Unchanged — Qdrant only |
 
+### Code walkthrough
+
+#### Chat request & response models — [`Requests.cs`](src/Qdrant.Demo.Api/Models/Requests.cs)
+
+Three new records define the chat contract:
+
+```csharp
+public record ChatRequest(
+    string Question,
+    int K = 5
+);
+
+public record ChatResponse(
+    string Answer,
+    IReadOnlyList<ChatSource> Sources
+);
+
+public record ChatSource(
+    string Id,
+    float Score,
+    string TextSnippet
+);
+```
+
+`K` controls how many documents are retrieved as context. The response pairs the generated answer with the source documents and their similarity scores, so the caller can verify grounding.
+
+#### The RAG pipeline — [`ChatEndpoints.cs`](src/Qdrant.Demo.Api/Endpoints/ChatEndpoints.cs)
+
+The system prompt sets the ground rules — the LLM must answer only from provided context:
+
+```csharp
+private const string DefaultSystemPrompt =
+    """
+    You are a helpful assistant. Answer the user's question based **only** on
+    the provided context documents. If the context does not contain enough
+    information to answer, say so clearly — do not make up facts.
+    """;
+```
+
+The endpoint follows the classic RAG pattern — embed, retrieve, assemble context, generate:
+
+```csharp
+// 1. Embed the user's question
+var vector = await embeddings.EmbedAsync(req.Question, ct);
+
+// 2. Retrieve the top-K most similar documents
+var hits = await qdrant.SearchAsync(
+    collectionName: collectionName,
+    vector: vector,
+    limit: (ulong)req.K,
+    payloadSelector: true,
+    cancellationToken: ct);
+```
+
+The retrieved documents are numbered and combined into a single context string, then sent to the LLM along with the user's question:
+
+```csharp
+// 4. Call the chat-completion model
+List<ChatMessage> messages =
+[
+    new ChatMessage(ChatRole.System, DefaultSystemPrompt),
+    new ChatMessage(ChatRole.User,
+        $"""
+        Context:
+        {context}
+
+        Question: {req.Question}
+        """)
+];
+
+var response = await chatClient.GetResponseAsync(messages, cancellationToken: ct);
+```
+
+The `IChatClient` abstraction (from Microsoft.Extensions.AI) keeps the endpoint decoupled from any specific LLM provider.
+
 ---
 
 ## Step 1 — Start Qdrant and run the API

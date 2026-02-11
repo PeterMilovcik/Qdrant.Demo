@@ -71,6 +71,66 @@ This lets you group search results by source document or fetch all chunks for a 
 | `Services/DocumentIndexer.cs` | Full rewrite: chunks text, creates a point per chunk, stores chunking metadata |
 | `Program.cs` | Registers `ChunkingOptions`, `ITextChunker`; passes chunker to `DocumentIndexer` |
 
+### Code walkthrough
+
+#### The text chunker — [`TextChunker.cs`](src/Qdrant.Demo.Api/Services/TextChunker.cs)
+
+If the text fits in a single chunk, it's returned as-is. Otherwise, the chunker splits with overlap and tries to break at sentence boundaries:
+
+```csharp
+public IReadOnlyList<TextChunk> Chunk(string text)
+{
+    if (text.Length <= options.MaxChunkSize)
+    {
+        return [new TextChunk(text, Index: 0, StartOffset: 0, EndOffset: text.Length)];
+    }
+
+    List<TextChunk> chunks = [];
+    var chunkIndex = 0;
+    var start = 0;
+
+    while (start < text.Length)
+    {
+        var remaining = text.Length - start;
+        var length = Math.Min(options.MaxChunkSize, remaining);
+
+        // Not the last chunk? Try to find a sentence boundary to break at.
+        if (start + length < text.Length)
+        {
+            length = FindSentenceBoundary(text, start, length);
+        }
+        // ... store chunk and advance by (length - overlap)
+    }
+}
+```
+
+The `FindSentenceBoundary` method scans backwards from the cut point, preferring paragraph breaks (`\n`), then sentence enders (`.`, `?`, `!`), then any whitespace — and falls back to a hard cut only as a last resort.
+
+#### Chunked indexing — [`DocumentIndexer.cs`](src/Qdrant.Demo.Api/Services/DocumentIndexer.cs)
+
+The indexer now creates one Qdrant point per chunk. Single-chunk documents keep the original id; multi-chunk documents get a derived id per chunk:
+
+```csharp
+// For single-chunk documents keep the original id;
+// for multi-chunk, append _chunk_{index} for uniqueness.
+var pointIdStr = chunks.Count == 1
+    ? sourceId
+    : $"{sourceId}_chunk_{i}".ToDeterministicGuid().ToString("D");
+```
+
+Each chunk carries parent-child metadata so search results can be grouped by source document:
+
+```csharp
+if (chunks.Count > 1)
+{
+    point.Payload[SourceDocId] = sourceId;
+    point.Payload[ChunkIndex] = i.ToString();
+    point.Payload[TotalChunks] = chunks.Count.ToString();
+}
+```
+
+Tags and properties from the original request are copied to **every** chunk, so tag-filtered searches still match regardless of which chunk is most relevant.
+
 ---
 
 ## Step 1 — Start Qdrant and run the API

@@ -44,6 +44,65 @@ The batch endpoint doesn't stop at the first error. If document #3 out of 10 fai
 
 No new services, no new tests — this is a thin endpoint layer.
 
+### Code walkthrough
+
+#### Batch response model — [`Requests.cs`](src/Qdrant.Demo.Api/Models/Requests.cs)
+
+A simple accounting record that tells the caller exactly what happened:
+
+```csharp
+public record BatchUpsertResponse(
+    int Total,
+    int Succeeded,
+    int Failed,
+    IReadOnlyList<string> Errors
+);
+```
+
+#### The batch endpoint — [`DocumentEndpoints.cs`](src/Qdrant.Demo.Api/Endpoints/DocumentEndpoints.cs)
+
+The endpoint accepts an array of `DocumentUpsertRequest` and processes each one independently. Failures are collected, not thrown — so one bad document doesn't block the rest:
+
+```csharp
+app.MapPost("/documents/batch", async (
+    [FromBody] IReadOnlyList<DocumentUpsertRequest> batch,
+    IDocumentIndexer indexer,
+    CancellationToken ct) =>
+{
+    List<string> errors = [];
+    var succeeded = 0;
+
+    foreach (var req in batch)
+    {
+        if (string.IsNullOrWhiteSpace(req.Text))
+        {
+            var label = req.Id ?? "(empty)";
+            errors.Add($"[{label}]: Text is required and cannot be empty.");
+            continue;
+        }
+
+        try
+        {
+            await indexer.IndexAsync(req, ct);
+            succeeded++;
+        }
+        catch (Exception ex)
+        {
+            var label = req.Id ?? req.Text[..Math.Min(req.Text.Length, 40)];
+            errors.Add($"[{label}]: {ex.Message}");
+        }
+    }
+
+    return Results.Ok(new BatchUpsertResponse(
+        Total: batch.Count,
+        Succeeded: succeeded,
+        Failed: errors.Count,
+        Errors: errors));
+});
+```
+
+The error label uses the document's `Id` when available, or the first 40 characters of the text as a fallback — making it easy to identify which item failed in a large batch.
+
 ---
 
 ## Step 1 — Start Qdrant and run the API
