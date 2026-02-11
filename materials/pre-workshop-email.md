@@ -54,7 +54,7 @@ If all three checks pass, you're ready!
 
 ## OpenAI API key
 
-The workshop uses **OpenAI** for embeddings and chat (models: `text-embedding-3-small` and `gpt-4o-mini`). **I will provide a shared API key on workshop day** -- you do not need to create your own.
+The workshop uses **OpenAI** for embeddings and chat (models: `text-embedding-3-small` and `gpt-4o-mini`). A shared API key will be provided by the workshop facilitator at the start of the session -- you do not need to create your own.
 
 ---
 
