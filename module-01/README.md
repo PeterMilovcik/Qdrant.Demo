@@ -199,4 +199,17 @@ At this point you have:
 - [x] Verified idempotent upserts (re-indexing doesn't create duplicates)
 - [x] Understanding of: embeddings, points, payloads, deterministic point-ids
 
+## 🧹 Clean Up
+
+Before moving to the next module, stop everything started in this module:
+
+1. **Stop the local API** — press `Ctrl+C` in the terminal where `dotnet run` is running
+2. **Stop Docker containers** — from the `module-01` directory:
+
+```bash
+docker compose down
+```
+
+This tears down Qdrant, Ollama, and any other containers so the next module starts fresh.
+
 **Next →** [Module 2 — Similarity Search](../module-02/README.md)

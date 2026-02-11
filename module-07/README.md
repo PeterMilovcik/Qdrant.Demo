@@ -202,4 +202,17 @@ At this point you have:
 - [x] Multi-chunk documents with parent-child metadata in Qdrant
 - [x] Understanding of: chunking strategy, overlap, sentence boundaries, chunking metadata
 
+## 🧹 Clean Up
+
+Before moving to the next module, stop everything started in this module:
+
+1. **Stop the local API** — press `Ctrl+C` in the terminal where `dotnet run` is running
+2. **Stop Docker containers** — from the `module-07` directory:
+
+```bash
+docker compose down
+```
+
+This tears down Qdrant, Ollama, and any other containers so the next module starts fresh.
+
 **Next →** [Module 8 — Batch Operations](../module-08/README.md)

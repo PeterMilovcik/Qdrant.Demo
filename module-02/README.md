@@ -179,4 +179,17 @@ At this point you have:
 - [x] Understood cosine similarity scores
 - [x] Understanding of: Top-K search, score interpretation, QdrantPayloadExtensions
 
+## 🧹 Clean Up
+
+Before moving to the next module, stop everything started in this module:
+
+1. **Stop the local API** — press `Ctrl+C` in the terminal where `dotnet run` is running
+2. **Stop Docker containers** — from the `module-02` directory:
+
+```bash
+docker compose down
+```
+
+This tears down Qdrant, Ollama, and any other containers so the next module starts fresh.
+
 **Next →** [Module 3 — Metadata](../module-03/README.md)

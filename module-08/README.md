@@ -174,4 +174,17 @@ Congratulations — you've completed the entire workshop! Here's everything you 
 - **Web UI** — Build a React/Blazor frontend that calls these endpoints
 - **Authentication** — Add API keys or OAuth to protect the endpoints
 
+## 🧹 Clean Up
+
+When you’re done exploring, stop everything:
+
+1. **Stop the local API** — press `Ctrl+C` in the terminal where `dotnet run` is running
+2. **Stop Docker containers** — from the `module-08` directory:
+
+```bash
+docker compose down
+```
+
+> **Tip:** If you want to remove all downloaded Ollama models and Qdrant data as well, use `docker compose down -v` to also delete the volumes.
+
 See the [completed/](../completed/) folder for the full reference implementation.

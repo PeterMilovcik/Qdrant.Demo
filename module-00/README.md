@@ -179,4 +179,17 @@ At this point you have:
 - [x] The Qdrant Dashboard showing your collection
 - [x] Understanding of: collections, points (conceptually), and the bootstrapper pattern
 
+## 🧹 Clean Up
+
+Before moving to the next module, stop everything started in this module:
+
+1. **Stop the local API** — press `Ctrl+C` in the terminal where `dotnet run` is running
+2. **Stop Docker containers** — from the `module-00` directory:
+
+```bash
+docker compose down
+```
+
+This ensures ports 8080, 6333, and 6334 are free for the next module.
+
 **Next →** [Module 1 — Your First Document](../module-01/README.md)

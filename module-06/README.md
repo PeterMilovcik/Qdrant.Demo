@@ -183,4 +183,17 @@ At this point you have:
 - [x] Score threshold to exclude weak matches
 - [x] Understanding of: persona control, filtered RAG, context quality tuning
 
+## 🧹 Clean Up
+
+Before moving to the next module, stop everything started in this module:
+
+1. **Stop the local API** — press `Ctrl+C` in the terminal where `dotnet run` is running
+2. **Stop Docker containers** — from the `module-06` directory:
+
+```bash
+docker compose down
+```
+
+This tears down Qdrant, Ollama, and any other containers so the next module starts fresh.
+
 **Next →** [Module 7 — Chunking](../module-07/README.md)
