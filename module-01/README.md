@@ -63,6 +63,100 @@ This means **re-indexing the same document is safe** — it just overwrites the 
 | `appsettings.json` | Added `OpenAI.EmbeddingModel` |
 | `docker-compose.yml` | Unchanged — Qdrant only |
 
+### Code walkthrough
+
+#### Deterministic point-ids — [`StringExtensions.cs`](src/Qdrant.Demo.Api/Extensions/StringExtensions.cs)
+
+The API needs a stable, repeatable UUID for every document so that re-indexing the same content overwrites rather than duplicates. This extension method hashes any string with SHA-256 and reshapes the first 16 bytes into an RFC 4122 GUID:
+
+```csharp
+public static Guid ToDeterministicGuid(this string input)
+{
+    var hash = SHA256.HashData(Encoding.UTF8.GetBytes(input));
+
+    Span<byte> g = stackalloc byte[16];
+    hash.AsSpan(0, 16).CopyTo(g);
+
+    // version 5 (0101xxxx)
+    g[6] = (byte)((g[6] & 0x0F) | 0x50);
+    // RFC 4122 variant (10xxxxxx)
+    g[8] = (byte)((g[8] & 0x3F) | 0x80);
+
+    return new Guid(g);
+}
+```
+
+Same input → same GUID, every time. This is what makes upserts idempotent.
+
+#### Generating embeddings — [`EmbeddingService.cs`](src/Qdrant.Demo.Api/Services/EmbeddingService.cs)
+
+The embedding service is a thin wrapper around the Microsoft.Extensions.AI `IEmbeddingGenerator` abstraction. It sends a single text to OpenAI and returns the resulting 1536-float vector:
+
+```csharp
+public sealed class EmbeddingService(
+    IEmbeddingGenerator<string, Embedding<float>> generator) : IEmbeddingService
+{
+    public async Task<float[]> EmbedAsync(string text, CancellationToken ct = default)
+    {
+        var embedding = await generator.GenerateAsync(
+            [text], cancellationToken: ct);
+        return embedding[0].Vector.ToArray();
+    }
+}
+```
+
+Because it depends on the `IEmbeddingGenerator` interface (not the OpenAI SDK directly), the service is easy to test with a mock.
+
+#### The indexing pipeline — [`DocumentIndexer.cs`](src/Qdrant.Demo.Api/Services/DocumentIndexer.cs)
+
+The `DocumentIndexer` ties everything together — hash the id, embed the text, build a Qdrant point, and upsert:
+
+```csharp
+// Deterministic point-id: from caller-supplied Id, or hash of Text
+var idSource = !string.IsNullOrWhiteSpace(request.Id)
+    ? request.Id!
+    : request.Text;
+var pointId = idSource.ToDeterministicGuid().ToString("D");
+
+// Generate embedding for the text
+var vector = await embeddings.EmbedAsync(request.Text, ct);
+
+// Build the Qdrant point
+var point = new PointStruct
+{
+    Id = new PointId { Uuid = pointId },
+    Vectors = vector,
+    Payload =
+    {
+        [Text] = request.Text,
+        [IndexedAtMs] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+    }
+};
+
+// Upsert into Qdrant (idempotent — same point-id overwrites)
+await qdrant.UpsertAsync(collectionName, [point], wait: true, cancellationToken: ct);
+```
+
+The `wait: true` parameter tells Qdrant to confirm the write is durable before returning — so the point is immediately searchable.
+
+#### The endpoint — [`DocumentEndpoints.cs`](src/Qdrant.Demo.Api/Endpoints/DocumentEndpoints.cs)
+
+A minimal API endpoint that validates the input, delegates to `IDocumentIndexer`, and returns the generated point id:
+
+```csharp
+app.MapPost("/documents", async (
+    [FromBody] DocumentUpsertRequest req,
+    IDocumentIndexer indexer,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(req.Text))
+        return Results.BadRequest("Text is required and cannot be empty.");
+
+    var response = await indexer.IndexAsync(req, ct);
+    return Results.Ok(response);
+});
+```
+
 ---
 
 ## Step 1 — Set your OpenAI API key

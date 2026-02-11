@@ -45,6 +45,72 @@ Use Top-K when you want a **fixed number of results** — like "show me the 5 mo
 | `Models/Requests.cs` | Added `TopKSearchRequest` and `SearchHit` records |
 | `Program.cs` | Added `MapSearchEndpoints(collectionName)` |
 
+### Code walkthrough
+
+#### Search request & result models — [`Requests.cs`](src/Qdrant.Demo.Api/Models/Requests.cs)
+
+Two new records power the search API:
+
+```csharp
+public record TopKSearchRequest(
+    string QueryText,
+    int K = 5,
+    Dictionary<string, string>? Tags = null
+);
+
+public record SearchHit(
+    string? Id,
+    float Score,
+    Dictionary<string, object?> Payload
+);
+```
+
+`TopKSearchRequest` takes the free-text query and the number of results to return. `Tags` is declared here but won't be used until Module 4 (filtered search). `SearchHit` carries the point id, its cosine similarity score, and the full payload.
+
+#### The search endpoint — [`SearchEndpoints.cs`](src/Qdrant.Demo.Api/Endpoints/SearchEndpoints.cs)
+
+The endpoint embeds the query text into a vector (same model used for indexing), then asks Qdrant for the closest matches:
+
+```csharp
+app.MapPost("/search/topk", async (
+    [FromBody] TopKSearchRequest req,
+    QdrantClient qdrant,
+    IEmbeddingService embeddings,
+    CancellationToken ct) =>
+{
+    var vector = await embeddings.EmbedAsync(req.QueryText, ct);
+
+    var hits = await qdrant.SearchAsync(
+        collectionName: collectionName,
+        vector: vector,
+        limit: (ulong)req.K,
+        payloadSelector: true,
+        cancellationToken: ct);
+
+    return Results.Ok(hits.ToFormattedHits());
+});
+```
+
+`payloadSelector: true` tells Qdrant to include the stored payload (text, timestamp, etc.) in each result — without it you'd only get ids and scores.
+
+#### Converting gRPC payloads — [`QdrantPayloadExtensions.cs`](src/Qdrant.Demo.Api/Extensions/QdrantPayloadExtensions.cs)
+
+Qdrant returns results as gRPC `ScoredPoint` objects with a protobuf-typed `Value` payload. This extension method converts them into clean `SearchHit` records with a regular `Dictionary<string, object?>` so the API returns human-readable JSON:
+
+```csharp
+public static IEnumerable<SearchHit> ToFormattedHits(
+    this IReadOnlyList<ScoredPoint> hits)
+{
+    return hits.Select(h => new SearchHit(
+        Id: h.Id?.Uuid ?? h.Id?.Num.ToString(),
+        Score: h.Score,
+        Payload: h.Payload.ToDictionary()
+    ));
+}
+```
+
+The `ToDictionary()` helper recursively walks the protobuf `Value` tree (strings, doubles, integers, bools, nested structs, lists) and produces plain CLR objects.
+
 ---
 
 ## Step 1 — Start Qdrant and run the API
