@@ -136,10 +136,9 @@ Open **http://localhost:6333/dashboard** → click the `documents` collection.
 
 You should see **1 point**. Click on it to inspect:
 - **Id:** the deterministic UUID
-- **Vector:** 1536 floating-point numbers (the embedding!)
 - **Payload:** `text` (your document text) and `indexed_at_ms` (timestamp)
 
-This is what an embedding looks like in practice — a long list of numbers that captures the meaning of your text.
+> **Note:** The dashboard doesn't display the raw vector values — it only shows the id and payload. The 1536-dimensional embedding vector is stored internally and used when you perform similarity searches (coming in Module 2).
 
 ## Step 5 — Index two more documents
 
@@ -210,7 +209,7 @@ You should see **10 tests passed** — covering `StringExtensions` (4 tests) and
 At this point you have:
 
 - [x] 3+ documents indexed in Qdrant
-- [x] Seen real embeddings (1536-dimensional vectors) in the Dashboard
+- [x] Seen points with payloads in the Qdrant Dashboard
 - [x] Verified idempotent upserts (re-indexing doesn't create duplicates)
 - [x] Understanding of: embeddings, points, payloads, deterministic point-ids
 
