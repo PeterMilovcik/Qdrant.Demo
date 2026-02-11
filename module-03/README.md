@@ -46,10 +46,65 @@ When you index a document you can now attach two kinds of metadata:
 
 | Changed file | What changed |
 |-------------|-------------|
-| `Models/PayloadKeys.cs` | Added `TagPrefix = "tag."` and `PropertyPrefix = "prop."` constants |
-| `Services/DocumentIndexer.cs` | After building the base payload, loops over `request.Tags` and `request.Properties`, writing prefixed keys into the point's payload |
+| `Models/PayloadKeys.cs` | Added `TagPrefix` and `PropertyPrefix` constants |
+| `Services/DocumentIndexer.cs` | Stores tags and properties as prefixed payload fields |
 
 No new endpoints — the existing `POST /documents` already accepts `tags` and `properties` in the request body (they were optional fields since Module 1). Now they are actually **stored**.
+
+### Code walkthrough
+
+#### The request model — [`Requests.cs`](src/Qdrant.Demo.Api/Models/Requests.cs)
+
+The `DocumentUpsertRequest` record already declared `Tags` and `Properties` as optional parameters in earlier modules. This module doesn't change the record — it just starts *using* them:
+
+```csharp
+public record DocumentUpsertRequest(
+    string? Id,
+    string Text,
+    Dictionary<string, string>? Tags = null,
+    Dictionary<string, string>? Properties = null
+);
+```
+
+Both are `Dictionary<string, string>?` — simple key-value pairs the caller can attach to any document.
+
+#### Prefix constants — [`PayloadKeys.cs`](src/Qdrant.Demo.Api/Models/PayloadKeys.cs)
+
+To keep the flat Qdrant payload organized, every tag key is prefixed with `tag.` and every property key with `prop.`:
+
+```csharp
+public static class PayloadKeys
+{
+    public const string Text        = "text";
+    public const string IndexedAtMs = "indexed_at_ms";
+    public const string TagPrefix      = "tag.";
+    public const string PropertyPrefix = "prop.";
+}
+```
+
+These constants are imported with `using static` in the indexer, so the code reads naturally (e.g. `$"{TagPrefix}{key}"`).
+
+#### Storing metadata — [`DocumentIndexer.cs`](src/Qdrant.Demo.Api/Services/DocumentIndexer.cs)
+
+After building the base payload (`text` + `indexed_at_ms`), the indexer loops over any supplied tags and properties and writes them into the Qdrant point's payload with the appropriate prefix:
+
+```csharp
+// Store tags as tag.{key} — these are indexed and filterable.
+if (request.Tags is not null)
+{
+    foreach (var (key, value) in request.Tags)
+        point.Payload[$"{TagPrefix}{key}"] = value;
+}
+
+// Store properties as prop.{key} — informational, not indexed.
+if (request.Properties is not null)
+{
+    foreach (var (key, value) in request.Properties)
+        point.Payload[$"{PropertyPrefix}{key}"] = value;
+}
+```
+
+The `if` guard means existing callers that don't send tags or properties are unaffected — backward compatible by design.
 
 ---
 
