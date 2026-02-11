@@ -38,8 +38,8 @@ public class QdrantFilterFactoryTests
 
         Assert.That(result, Is.Not.Null);
         var json = System.Text.Json.JsonSerializer.Serialize(result);
-        Assert.That(json, Does.Contain("tag.category"));
-        Assert.That(json, Does.Contain("tag.language"));
+        Assert.That(json, Does.Contain("tag_category"));
+        Assert.That(json, Does.Contain("tag_language"));
         Assert.That(json, Does.Contain("science"));
         Assert.That(json, Does.Contain("en"));
     }

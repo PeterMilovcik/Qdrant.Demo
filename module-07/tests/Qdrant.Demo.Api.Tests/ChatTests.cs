@@ -98,7 +98,7 @@ public class ChatTests
         var payload = new Dictionary<string, object?>
         {
             [Text] = "some text",
-            ["tag.category"] = "science"
+            ["tag_category"] = "science"
         };
 
         var hit = new SearchHit(
@@ -123,7 +123,7 @@ public class ChatTests
     [Test]
     public void PayloadKeys_Prefixes_AreCorrect()
     {
-        Assert.That(TagPrefix, Is.EqualTo("tag."));
-        Assert.That(PropertyPrefix, Is.EqualTo("prop."));
+        Assert.That(TagPrefix, Is.EqualTo("tag_"));
+        Assert.That(PropertyPrefix, Is.EqualTo("prop_"));
     }
 }

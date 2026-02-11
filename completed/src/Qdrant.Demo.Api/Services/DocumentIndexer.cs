@@ -8,8 +8,8 @@ namespace Qdrant.Demo.Api.Services;
 
 /// <summary>
 /// Production implementation of <see cref="IDocumentIndexer"/>.
-/// Embeds the document text via OpenAI, stores tags as <c>tag.{key}</c>
-/// and properties as <c>prop.{key}</c> in the Qdrant payload.
+/// Embeds the document text via OpenAI, stores tags as <c>tag_{key}</c>
+/// and properties as <c>prop_{key}</c> in the Qdrant payload.
 /// <para>
 /// When the input text exceeds the configured chunk size, the text is
 /// automatically split into overlapping chunks and each chunk is stored
@@ -74,7 +74,7 @@ public sealed class DocumentIndexer(
                 point.Payload[TotalChunks] = chunks.Count.ToString();
             }
 
-            // Store tags as tag.{key} — these are indexed and filterable.
+            // Store tags as tag_{key} — these are indexed and filterable.
             // Every chunk inherits the parent document's tags so that
             // tag-filtered searches still match.
             if (request.Tags is not null)
@@ -83,7 +83,7 @@ public sealed class DocumentIndexer(
                     point.Payload[$"{TagPrefix}{key}"] = value;
             }
 
-            // Store properties as prop.{key} — informational, not indexed.
+            // Store properties as prop_{key} — informational, not indexed.
             if (request.Properties is not null)
             {
                 foreach (var (key, value) in request.Properties)

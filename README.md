@@ -38,7 +38,7 @@ Each module is a **self-contained, fully buildable** .NET project in its own fol
 | **0** | [Setup & Orientation](module-00/README.md) | Docker, Qdrant Dashboard, Swagger UI, project skeleton | ~15 min |
 | **1** | [Your First Document](module-01/README.md) | Embeddings, Qdrant points, `POST /documents`, deterministic IDs | ~15 min |
 | **2** | [Similarity Search](module-02/README.md) | Cosine similarity, `POST /search/topk`, score interpretation | ~15 min |
-| **3** | [Metadata](module-03/README.md) | Tags vs Properties, `tag.*` / `prop.*` payload prefixes | ~10 min |
+| **3** | [Metadata](module-03/README.md) | Tags vs Properties, `tag_*` / `prop_*` payload prefixes | ~10 min |
 | **4** | [Filtered Search](module-04/README.md) | Tag filters, threshold search, metadata-only search, payload indexes | ~20 min |
 | **5** | [RAG Chat](module-05/README.md) | The full RAG pipeline, `POST /chat`, system prompt, hallucination guardrail | ~20 min |
 | **6** | [Advanced Chat](module-06/README.md) | Custom system prompts, filtered chat, prompt engineering | ~15 min |

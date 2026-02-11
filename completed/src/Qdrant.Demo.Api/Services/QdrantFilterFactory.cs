@@ -5,7 +5,7 @@ namespace Qdrant.Demo.Api.Services;
 
 /// <summary>
 /// Production implementation of <see cref="IQdrantFilterFactory"/>.
-/// Each tag becomes a condition on the <c>tag.{key}</c> payload field.
+/// Each tag becomes a condition on the <c>tag_{key}</c> payload field.
 /// </summary>
 public sealed class QdrantFilterFactory : IQdrantFilterFactory
 {
@@ -18,7 +18,7 @@ public sealed class QdrantFilterFactory : IQdrantFilterFactory
 
         foreach (var (key, value) in tags)
         {
-            filter.Must.Add(MatchKeyword($"tag.{key}", value));
+            filter.Must.Add(MatchKeyword($"tag_{key}", value));
         }
 
         return filter;
@@ -33,7 +33,7 @@ public sealed class QdrantFilterFactory : IQdrantFilterFactory
 
         foreach (var (key, value) in tags)
         {
-            must.Add(new { key = $"tag.{key}", match = new { value } });
+            must.Add(new { key = $"tag_{key}", match = new { value } });
         }
 
         return new { must };

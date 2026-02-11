@@ -8,8 +8,8 @@ namespace Qdrant.Demo.Api.Services;
 
 /// <summary>
 /// Production implementation of <see cref="IDocumentIndexer"/>.
-/// Embeds the document text via OpenAI, stores tags as <c>tag.{key}</c>
-/// and properties as <c>prop.{key}</c> in the Qdrant payload.
+/// Embeds the document text via OpenAI, stores tags as <c>tag_{key}</c>
+/// and properties as <c>prop_{key}</c> in the Qdrant payload.
 /// </summary>
 public sealed class DocumentIndexer(
     QdrantClient qdrant,
@@ -42,14 +42,14 @@ public sealed class DocumentIndexer(
             }
         };
 
-        // Store tags as tag.{key} — these are indexed and filterable.
+        // Store tags as tag_{key} — these are indexed and filterable.
         if (request.Tags is not null)
         {
             foreach (var (key, value) in request.Tags)
                 point.Payload[$"{TagPrefix}{key}"] = value;
         }
 
-        // Store properties as prop.{key} — informational, not indexed.
+        // Store properties as prop_{key} — informational, not indexed.
         if (request.Properties is not null)
         {
             foreach (var (key, value) in request.Properties)

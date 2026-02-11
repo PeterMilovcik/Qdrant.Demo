@@ -28,7 +28,7 @@ In Module 2, `/search/topk` returned the K most similar documents from the **ent
 ```
 
 Qdrant applies the tag filter **before** computing similarity. This means:
-- Only documents with `tag.category = "biology"` are considered
+- Only documents with `tag_category = "biology"` are considered
 - The K most similar documents **within that subset** are returned
 - This is called **pre-filtering** and is very efficient
 
@@ -47,7 +47,7 @@ This endpoint uses Qdrant's gRPC `ScrollAsync` method to retrieve matching point
 The `QdrantFilterFactory` is a small service that converts a `Dictionary<string, string>` of tags into two filter formats:
 - **gRPC filter** — used by `QdrantClient` for vector searches **and** the scroll endpoint
 
-Each tag becomes a `MatchKeyword` condition on the `tag.{key}` payload field. Multiple tags are combined with **AND** logic (`Must` clause).
+Each tag becomes a `MatchKeyword` condition on the `tag_{key}` payload field. Multiple tags are combined with **AND** logic (`Must` clause).
 
 ---
 
@@ -72,7 +72,7 @@ Each tag becomes a `MatchKeyword` condition on the `tag.{key}` payload field. Mu
 
 #### The filter factory — [`QdrantFilterFactory.cs`](src/Qdrant.Demo.Api/Services/QdrantFilterFactory.cs)
 
-This is the bridge between the simple `Dictionary<string, string>` tags from the request body and the filter objects that Qdrant understands. Each tag becomes a `MatchKeyword` condition on the `tag.{key}` payload field, combined with AND logic:
+This is the bridge between the simple `Dictionary<string, string>` tags from the request body and the filter objects that Qdrant understands. Each tag becomes a `MatchKeyword` condition on the `tag_{key}` payload field, combined with AND logic:
 
 ```csharp
 public Filter? CreateGrpcFilter(Dictionary<string, string>? tags)
@@ -83,7 +83,7 @@ public Filter? CreateGrpcFilter(Dictionary<string, string>? tags)
 
     foreach (var (key, value) in tags)
     {
-        filter.Must.Add(MatchKeyword($"tag.{key}", value));
+        filter.Must.Add(MatchKeyword($"tag_{key}", value));
     }
 
     return filter;

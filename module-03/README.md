@@ -8,7 +8,7 @@ By the end of this module you will have:
 
 - Understood the difference between **tags** (filterable) and **properties** (informational)
 - Stored structured metadata alongside document vectors
-- Seen how the `tag.` / `prop.` prefix convention keeps the payload organized
+- Seen how the `tag_` / `prop_` prefix convention keeps the payload organized
 
 ---
 
@@ -20,12 +20,12 @@ When you index a document you can now attach two kinds of metadata:
 
 | | Tags | Properties |
 |---|---|---|
-| **Payload prefix** | `tag.{key}` | `prop.{key}` |
+| **Payload prefix** | `tag_{key}` | `prop_{key}` |
 | **Purpose** | Filtering during search | Returned with results for display |
 | **Example** | `"category": "science"` | `"source_url": "https://..."` |
 | **Indexed by Qdrant?** | Yes — used in `must` / `should` filter clauses | No — stored but not used for filtering |
 
-**Why the prefix?** Qdrant stores all metadata in a flat key-value payload. Prefixing tags with `tag.` and properties with `prop.` avoids collisions and makes it easy for the filter factory (coming in Module 4) to build filter clauses automatically.
+**Why the prefix?** Qdrant stores all metadata in a flat key-value payload. Prefixing tags with `tag_` and properties with `prop_` avoids collisions and makes it easy for the filter factory (coming in Module 4) to build filter clauses automatically.
 
 ### Example payload after indexing
 
@@ -33,10 +33,10 @@ When you index a document you can now attach two kinds of metadata:
 {
   "text": "Photosynthesis converts sunlight into chemical energy...",
   "indexed_at_ms": 1718500000000,
-  "tag.category": "biology",
-  "tag.level": "introductory",
-  "prop.source_url": "https://example.com/biology/photosynthesis",
-  "prop.author": "Dr. Green"
+  "tag_category": "biology",
+  "tag_level": "introductory",
+  "prop_source_url": "https://example.com/biology/photosynthesis",
+  "prop_author": "Dr. Green"
 }
 ```
 
@@ -70,15 +70,15 @@ Both are `Dictionary<string, string>?` — simple key-value pairs the caller can
 
 #### Prefix constants — [`PayloadKeys.cs`](src/Qdrant.Demo.Api/Models/PayloadKeys.cs)
 
-To keep the flat Qdrant payload organized, every tag key is prefixed with `tag.` and every property key with `prop.`:
+To keep the flat Qdrant payload organized, every tag key is prefixed with `tag_` and every property key with `prop_`:
 
 ```csharp
 public static class PayloadKeys
 {
     public const string Text        = "text";
     public const string IndexedAtMs = "indexed_at_ms";
-    public const string TagPrefix      = "tag.";
-    public const string PropertyPrefix = "prop.";
+    public const string TagPrefix      = "tag_";
+    public const string PropertyPrefix = "prop_";
 }
 ```
 
@@ -89,14 +89,14 @@ These constants are imported with `using static` in the indexer, so the code rea
 After building the base payload (`text` + `indexed_at_ms`), the indexer loops over any supplied tags and properties and writes them into the Qdrant point's payload with the appropriate prefix:
 
 ```csharp
-// Store tags as tag.{key} — these are indexed and filterable.
+// Store tags as tag_{key} — these are indexed and filterable.
 if (request.Tags is not null)
 {
     foreach (var (key, value) in request.Tags)
         point.Payload[$"{TagPrefix}{key}"] = value;
 }
 
-// Store properties as prop.{key} — informational, not indexed.
+// Store properties as prop_{key} — informational, not indexed.
 if (request.Properties is not null)
 {
     foreach (var (key, value) in request.Properties)
@@ -170,11 +170,11 @@ In the response payload you should now see:
     "score": 0.5855994,
     "payload": {
       "indexed_at_ms": 1770836017589,
-      "prop.source_url": "https://example.com/bio",
-      "tag.level": "introductory",
-      "prop.author": "Dr. Green",
+      "prop_source_url": "https://example.com/bio",
+      "tag_level": "introductory",
+      "prop_author": "Dr. Green",
       "text": "Photosynthesis is the process by which green plants convert sunlight into chemical energy.",
-      "tag.category": "biology"
+      "tag_category": "biology"
     }
   }
 ]
@@ -222,7 +222,7 @@ Using **POST /search/topk** in Swagger UI, search with:
 }
 ```
 
-The physics document should rank highest — and you should see its `tag.category` = `"physics"` in the payload.
+The physics document should rank highest — and you should see its `tag_category` = `"physics"` in the payload.
 
 ### Exercise 3.3 — Think ahead
 
@@ -243,7 +243,7 @@ You should see **11 tests passed** (same count — no new test file this module,
 
 At this point you have:
 
-- [x] Tags stored as `tag.{key}` and properties stored as `prop.{key}` in Qdrant
+- [x] Tags stored as `tag_{key}` and properties stored as `prop_{key}` in Qdrant
 - [x] Documents enriched with structured metadata
 - [x] Understanding of: Tags (filterable) vs Properties (informational), prefix convention
 
