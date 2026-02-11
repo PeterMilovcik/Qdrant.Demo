@@ -59,18 +59,35 @@ This is a hard-coded default in Module 5. In Module 6 you'll make it customizabl
 |-------------|-------------|
 | `Models/Requests.cs` | Added `ChatRequest(Question, K)`, `ChatResponse`, `ChatSource` records |
 | `Program.cs` | Added `IChatClient` registration, `chatModel` config, `MapChatEndpoints()` |
-| `docker-compose.yml` | Added `CHAT_MODEL` environment variable; Ollama now also pulls `llama3.2` (~2 GB on first run) |
+| `docker-compose.yml` | Unchanged — Qdrant only (Ollama + chat model run natively on your machine) |
 
 ---
 
-## Step 1 — Start Qdrant and run the API
+## Step 1 — Make sure Ollama has the chat model
+
+This module introduces the chat LLM. Make sure you have both models:
+
+```bash
+ollama pull nomic-embed-text   # if not already pulled
+ollama pull llama3.2            # ~2 GB on first download
+```
+
+Verify:
+
+```bash
+ollama list   # should show nomic-embed-text AND llama3.2
+```
+
+## Step 2 — Start Qdrant and run the API
 
 ```bash
 cd module-05
-docker compose up -d    # starts Qdrant + demo-api (http://localhost:8080)
+docker compose up -d    # starts Qdrant (http://localhost:6333)
+```
 
-# Option A: use the containerized API at http://localhost:8080
-# Option B: run the API locally on a known port
+Then run the API locally:
+
+```bash
 cd src/Qdrant.Demo.Api
 ```
 
@@ -204,6 +221,6 @@ Before moving to the next module, stop everything started in this module:
 docker compose down
 ```
 
-This tears down Qdrant, Ollama, and any other containers so the next module starts fresh.
+This stops Qdrant so the next module starts fresh.
 
 **Next →** [Module 6 — Advanced Chat](../module-06/README.md)

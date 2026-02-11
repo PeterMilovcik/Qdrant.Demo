@@ -1,29 +1,4 @@
 services:
-  ollama:
-    image: ollama/ollama:latest
-    volumes:
-      - ollama_data:/root/.ollama
-    ports:
-      - "11434:11434"
-    networks:
-      - backend
-    healthcheck:
-      test: ["CMD-SHELL", "ollama list || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  ollama-pull:
-    image: ollama/ollama:latest
-    depends_on:
-      ollama:
-        condition: service_healthy
-    entrypoint: ["sh", "-c", "ollama pull nomic-embed-text && ollama pull llama3.2"]
-    environment:
-      OLLAMA_HOST: ollama:11434
-    networks:
-      - backend
-
   qdrant:
     image: qdrant/qdrant:v1.16.3
     volumes:
@@ -36,39 +11,8 @@ services:
     networks:
       - backend
 
-  demo-api:
-    build:
-      context: ./src/Qdrant.Demo.Api
-      dockerfile: Dockerfile
-    environment:
-      ASPNETCORE_URLS: http://+:8080
-
-      # Qdrant endpoints inside the compose network
-      QDRANT_HOST: qdrant
-      QDRANT_HTTP_PORT: "6333"
-      QDRANT_GRPC_PORT: "6334"
-
-      # App settings
-      QDRANT_COLLECTION: documents
-      EMBEDDING_DIM: "768"
-
-      # Ollama settings
-      LLM_ENDPOINT: http://ollama:11434
-      EMBEDDING_MODEL: nomic-embed-text
-      CHAT_MODEL: llama3.2
-    depends_on:
-      ollama-pull:
-        condition: service_completed_successfully
-      qdrant:
-        condition: service_started
-    ports:
-      - "8080:8080"  # expose ONLY the API to your machine
-    networks:
-      - backend
-
 volumes:
   qdrant_storage:
-  ollama_data:
 
 networks:
   backend:

@@ -65,10 +65,12 @@ No new files — this is a refinement of the existing chat endpoint.
 
 ```bash
 cd module-06
-docker compose up -d    # starts Qdrant + demo-api (http://localhost:8080)
+docker compose up -d    # starts Qdrant (http://localhost:6333)
+```
 
-# Option A: use the containerized API at http://localhost:8080
-# Option B: run the API locally on a known port
+Then run the API locally:
+
+```bash
 cd src/Qdrant.Demo.Api
 ```
 
@@ -194,6 +196,6 @@ Before moving to the next module, stop everything started in this module:
 docker compose down
 ```
 
-This tears down Qdrant, Ollama, and any other containers so the next module starts fresh.
+This stops Qdrant so the next module starts fresh.
 
 **Next →** [Module 7 — Chunking](../module-07/README.md)

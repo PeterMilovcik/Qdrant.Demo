@@ -51,10 +51,12 @@ Use Top-K when you want a **fixed number of results** — like "show me the 5 mo
 
 ```bash
 cd module-02
-docker compose up -d    # starts Qdrant + demo-api (http://localhost:8080)
+docker compose up -d    # starts Qdrant (http://localhost:6333)
+```
 
-# Option A: use the containerized API at http://localhost:8080
-# Option B: run the API locally on a known port
+Then run the API locally:
+
+```bash
 cd src/Qdrant.Demo.Api
 ```
 
@@ -190,6 +192,6 @@ Before moving to the next module, stop everything started in this module:
 docker compose down
 ```
 
-This tears down Qdrant, Ollama, and any other containers so the next module starts fresh.
+This stops Qdrant so the next module starts fresh.
 
 **Next →** [Module 3 — Metadata](../module-03/README.md)

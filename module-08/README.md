@@ -50,10 +50,12 @@ No new services, no new tests — this is a thin endpoint layer.
 
 ```bash
 cd module-08
-docker compose up -d    # starts Qdrant + demo-api (http://localhost:8080)
+docker compose up -d    # starts Qdrant (http://localhost:6333)
+```
 
-# Option A: use the containerized API at http://localhost:8080
-# Option B: run the API locally on a known port
+Then run the API locally:
+
+```bash
 cd src/Qdrant.Demo.Api
 ```
 

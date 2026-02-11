@@ -55,11 +55,14 @@ The [`completed/`](completed/) folder contains the final state with **all** feat
 
 | Tool | Version | Why |
 |------|---------|-----|
-| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | 4.x+ | Runs Qdrant vector database and Ollama local LLM |
+| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | 4.x+ | Runs the Qdrant vector database |
 | [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | 10.0+ | Build & run the API locally |
-| `curl` or similar HTTP client | — | Test the API endpoints |
+| [Ollama](https://ollama.com/) | latest | Runs local AI models (embeddings + chat) |
+| `curl` or similar HTTP client | -- | Test the API endpoints |
 
-> **💰 Cost note:** Ollama runs locally — no API keys, no usage fees. The first run downloads models (~274 MB for nomic-embed-text, ~2 GB for llama3.2) and may take a few minutes.
+> **Cost note:** Ollama runs locally -- no API keys, no usage fees. The first run downloads models (~274 MB for nomic-embed-text, ~2 GB for llama3.2) and may take a few minutes.
+
+> **Running a workshop?** Send the [pre-workshop email](materials/pre-workshop-email.md) to participants ~1 week before. It lists everything they need to install and download ahead of time, avoiding a bandwidth bottleneck on workshop day. This setup is **corporate-network friendly** -- Qdrant pulls from Docker Hub, and Ollama runs natively using the host OS certificate store.
 
 ---
 
@@ -90,6 +93,7 @@ Then follow the [Module 0 README](module-00/README.md) to get started.
 Qdrant.Demo/
   README.md                         ← you are here
   global.json
+  materials/                        ← Pre-workshop email template & setup instructions
   module-00/                        ← Setup & Orientation
   module-01/                        ← Your First Document
   module-02/                        ← Similarity Search
@@ -109,7 +113,7 @@ module-XX/
   README.md                         ← Module instructions & exercises
   Qdrant.Demo.sln                   ← Solution file
   global.json                       ← .NET SDK version pin
-  docker-compose.yml                ← Qdrant (+ API for later modules)
+  docker-compose.yml                ← Qdrant vector database
   src/
     Qdrant.Demo.Api/                ← API code for this module
   tests/
@@ -157,7 +161,7 @@ This workshop implements **all three steps** across the modules above.
 | **.NET 10 Web API** | Minimal API that exposes indexing, search, and chat endpoints |
 | **Ollama Embeddings** | `nomic-embed-text` model (768 dimensions) converts text → vectors |
 | **Ollama Chat** | `llama3.2` model generates answers grounded in retrieved documents |
-| **Docker Compose** | Runs Qdrant (and optionally the API) in containers |
+| **Docker Compose** | Runs Qdrant in a container |
 
 ---
 

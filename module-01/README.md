@@ -1,6 +1,6 @@
 # Module 1 — Your First Document
 
-> **~15 min** · Requires Ollama (started via Docker Compose) · Builds on [Module 0](../module-00/README.md)
+> **~15 min** · Requires Ollama running locally · Builds on [Module 0](../module-00/README.md)
 
 ## Learning objective
 
@@ -61,22 +61,36 @@ This means **re-indexing the same document is safe** — it just overwrites the 
 | `Program.cs` | Added Ollama config, `IEmbeddingGenerator<string, Embedding<float>>`, `IEmbeddingService`, `IDocumentIndexer`, `MapDocumentEndpoints()` |
 | `Qdrant.Demo.Api.csproj` | Added `OllamaSharp` and `Microsoft.Extensions.AI` NuGet packages |
 | `appsettings.json` | Added `Ollama.EmbeddingModel` |
-| `docker-compose.yml` | Added `demo-api` service with Ollama env vars; Ollama runs as a Docker service with automatic model pulling (via `ollama-pull` init container) |
+| `docker-compose.yml` | Unchanged — Qdrant only (Ollama runs natively on your machine) |
 
 ---
 
-## Step 1 — Note on Ollama
+## Step 1 — Make sure Ollama is running
 
-Ollama runs as a Docker service — no API key needed. When you run `docker compose up` in the next step, the `ollama-pull` init container will automatically download the required models (`nomic-embed-text` for embeddings). The first run may take a few minutes (~274 MB download).
+Ollama must be running locally with the `nomic-embed-text` model. If you haven't already:
+
+```bash
+# Install Ollama from https://ollama.com (one-click installer)
+# Then pull the embedding model:
+ollama pull nomic-embed-text
+```
+
+Verify it's ready:
+
+```bash
+ollama list   # should show nomic-embed-text
+```
 
 ## Step 2 — Start Qdrant and run the API
 
 ```bash
 cd module-01
-docker compose up -d    # starts Qdrant + demo-api (http://localhost:8080)
+docker compose up -d    # starts Qdrant (http://localhost:6333)
+```
 
-# Option A: use the containerized API at http://localhost:8080
-# Option B: run the API locally on a known port
+Then run the API locally:
+
+```bash
 cd src/Qdrant.Demo.Api
 ```
 
@@ -210,6 +224,6 @@ Before moving to the next module, stop everything started in this module:
 docker compose down
 ```
 
-This tears down Qdrant, Ollama, and any other containers so the next module starts fresh.
+This stops Qdrant so the next module starts fresh. Ollama keeps running in the background (which is fine — models stay loaded).
 
 **Next →** [Module 2 — Similarity Search](../module-02/README.md)
