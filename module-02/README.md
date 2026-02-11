@@ -152,7 +152,7 @@ In the **Response body** you should see all 3 documents ranked by similarity:
 ]
 ```
 
-**Notice:** The photosynthesis article scores highest (~0.89) because it's semantically closest to the query. The other articles score much lower because they're about different topics. This is cosine similarity in action.
+**Notice:** The photosynthesis article scores highest (~0.64) because it's semantically closest to the query. The other articles score much lower because they're about different topics. This is cosine similarity in action.
 
 ---
 
