@@ -54,9 +54,7 @@ If all three checks pass, you're ready!
 
 ## OpenAI API key
 
-The workshop uses **OpenAI** for embeddings and chat (models: `text-embedding-3-small` and `gpt-4o-mini`). **[I will provide a shared API key on workshop day / Please bring your own OpenAI API key]** -- delete whichever option does not apply.
-
-If you want to bring your own key, you can create one at [platform.openai.com/api-keys](https://platform.openai.com/api-keys). Expected cost for the full workshop is under $1.
+The workshop uses **OpenAI** for embeddings and chat (models: `text-embedding-3-small` and `gpt-4o-mini`). **I will provide a shared API key on workshop day** -- you do not need to create your own.
 
 ---
 
