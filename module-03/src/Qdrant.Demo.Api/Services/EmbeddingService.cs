@@ -4,7 +4,7 @@ namespace Qdrant.Demo.Api.Services;
 
 /// <summary>
 /// Production implementation of <see cref="IEmbeddingService"/>
-/// backed by a local Ollama embedding model via Microsoft.Extensions.AI.
+/// backed by OpenAI via Microsoft.Extensions.AI.
 /// </summary>
 public sealed class EmbeddingService(
     IEmbeddingGenerator<string, Embedding<float>> generator) : IEmbeddingService

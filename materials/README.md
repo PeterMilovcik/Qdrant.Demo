@@ -8,17 +8,13 @@ This folder contains resources for **workshop organizers** to help participants 
 |------|---------|
 | [pre-workshop-email.md](pre-workshop-email.md) | Ready-to-send email template -- copy into Outlook/Gmail, fill in the `[PLACEHOLDER]` values, and send to participants ~1 week before the workshop |
 
-## Why pre-download matters
+## Why pre-setup matters
 
-The workshop needs to download the Qdrant Docker image and two Ollama models:
+The workshop needs Docker (for Qdrant) and an **OpenAI API key** (for embeddings + chat). Having participants install prerequisites and pull the Qdrant image **before** the workshop avoids a bandwidth bottleneck on the day.
 
-| Download | Size |
-|----------|------|
+| Pre-download | Size |
+|-------------|------|
 | Docker image (`qdrant/qdrant:v1.16.3`) | ~150 MB |
-| Ollama embedding model (`nomic-embed-text`) | ~274 MB |
-| Ollama chat model (`llama3.2`) | ~2 GB |
-
-If 10+ participants start downloading simultaneously on workshop day, the shared network bandwidth becomes a bottleneck. Have participants complete the setup steps **before** the workshop.
 
 ## Participant setup (include in your pre-workshop email)
 
@@ -28,7 +24,6 @@ If 10+ participants start downloading simultaneously on workshop day, the shared
 |------|------|
 | Docker Desktop | [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/) |
 | .NET 10 SDK | [dotnet.microsoft.com/download/dotnet/10.0](https://dotnet.microsoft.com/download/dotnet/10.0) |
-| Ollama | [ollama.com](https://ollama.com/) |
 | Git | [git-scm.com](https://git-scm.com/) |
 
 ### 2. Pull the Qdrant Docker image
@@ -37,19 +32,28 @@ If 10+ participants start downloading simultaneously on workshop day, the shared
 docker pull qdrant/qdrant:v1.16.3
 ```
 
-### 3. Pull the Ollama models
+### 3. Set the OpenAI API key
+
+Each participant needs an OpenAI API key. Set it as an environment variable before running any module:
+
+```powershell
+# PowerShell
+$env:OPENAI_API_KEY = "sk-..."
+```
 
 ```bash
-ollama pull nomic-embed-text
-ollama pull llama3.2
+# bash / zsh
+export OPENAI_API_KEY="sk-..."
 ```
+
+> **Workshop organizer tip:** You can create a single project-scoped API key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys) with a spending limit and share it with participants. Expected cost is ~$0.50 per participant for the full workshop.
 
 ### 4. Verify
 
 ```bash
 docker images | grep qdrant         # should show qdrant/qdrant v1.16.3
-ollama list                          # should show nomic-embed-text and llama3.2
 dotnet --version                     # should show 10.0.x
+echo $OPENAI_API_KEY                 # should show sk-...
 ```
 
 ## Corporate network notes
@@ -57,6 +61,6 @@ dotnet --version                     # should show 10.0.x
 This setup is **corporate-network friendly** by design:
 
 - **Docker** pulls `qdrant/qdrant` from **Docker Hub** -- works through corporate proxies that do SSL inspection
-- **Ollama** runs **natively** on the host OS and uses the **host certificate store** -- corporate CA certificates are already trusted, so `ollama pull` works through the proxy
-- The .NET API runs via `dotnet run` using **host certificates** -- no SSL issues
-- **No access to `registry.ollama.ai` from inside Docker containers** is needed
+- The .NET API calls the **OpenAI API** via HTTPS -- .NET uses the **Windows certificate store**, so corporate CA certificates are trusted automatically
+- No local AI model downloads needed -- no blocked registries
+- The API runs via `dotnet run` natively -- no containers with SSL issues

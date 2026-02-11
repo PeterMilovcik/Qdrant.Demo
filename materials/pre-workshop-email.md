@@ -10,7 +10,7 @@ Hi everyone,
 
 I'm looking forward to our **Qdrant.Demo -- RAG Workshop** on **[DATE]** at **[TIME]** in **[LOCATION / Teams link]**.
 
-To make sure we hit the ground running, **please complete the setup steps below before the workshop**. The downloads total about **2.5 GB** -- if everyone starts downloading at the same time on workshop day, we'll spend the first 30 minutes staring at progress bars.
+To make sure we hit the ground running, **please complete the setup steps below before the workshop**. This should take about 10 minutes.
 
 ---
 
@@ -20,13 +20,12 @@ To make sure we hit the ground running, **please complete the setup steps below 
 |---|------|------|-----|
 | 1 | **Docker Desktop** | [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/) | Runs the Qdrant vector database |
 | 2 | **.NET 10 SDK** | [dotnet.microsoft.com/download/dotnet/10.0](https://dotnet.microsoft.com/download/dotnet/10.0) | Build & run the API project |
-| 3 | **Ollama** | [ollama.com](https://ollama.com/) | Runs local AI models (embeddings + chat) -- one-click installer |
-| 4 | **Git** | [git-scm.com](https://git-scm.com/) | Clone the workshop repository |
-| 5 | **VS Code** *(recommended)* | [code.visualstudio.com](https://code.visualstudio.com/) | Recommended editor -- install the **C# Dev Kit** extension for the best experience |
+| 3 | **Git** | [git-scm.com](https://git-scm.com/) | Clone the workshop repository |
+| 4 | **VS Code** *(recommended)* | [code.visualstudio.com](https://code.visualstudio.com/) | Recommended editor -- install the **C# Dev Kit** extension for the best experience |
 
-## Pre-download everything (~2.5 GB)
+## Pre-download the Qdrant image (~150 MB)
 
-This is the **most important step** -- it avoids the download bottleneck on workshop day.
+This avoids a download bottleneck on workshop day if everyone starts pulling at the same time.
 
 ### 1. Clone the repository
 
@@ -43,27 +42,21 @@ Make sure Docker Desktop is running, then:
 docker pull qdrant/qdrant:v1.16.3
 ```
 
-### 3. Pull the Ollama models
-
-Ollama should be running after installation (it starts as a background service). Pull the two models we'll use:
-
-```bash
-ollama pull nomic-embed-text
-ollama pull llama3.2
-```
-
-The first model is ~274 MB (embeddings), the second is ~2 GB (chat). This may take a few minutes.
-
-### 4. Verify your setup
+### 3. Verify your setup
 
 ```bash
 docker --version          # Docker version 27.x or later
 dotnet --version          # 10.0.101 or later
-ollama list               # Should show nomic-embed-text and llama3.2
 docker images | grep qdrant   # Should show qdrant/qdrant v1.16.3
 ```
 
-If all four checks pass, you're ready!
+If all three checks pass, you're ready!
+
+## OpenAI API key
+
+The workshop uses **OpenAI** for embeddings and chat (models: `text-embedding-3-small` and `gpt-4o-mini`). **[I will provide a shared API key on workshop day / Please bring your own OpenAI API key]** -- delete whichever option does not apply.
+
+If you want to bring your own key, you can create one at [platform.openai.com/api-keys](https://platform.openai.com/api-keys). Expected cost for the full workshop is under $1.
 
 ---
 
@@ -74,10 +67,10 @@ Over **~2.5 hours**, we'll build a complete **Retrieval-Augmented Generation (RA
 - Store documents as vectors in a Qdrant vector database
 - Search by meaning (not keywords) using cosine similarity
 - Add metadata filtering
-- Wire up a local LLM (Ollama) to answer questions grounded in your documents
+- Wire up OpenAI to answer questions grounded in your documents
 - Handle long documents with text chunking
 
-Everything runs **100% locally** -- no cloud APIs, no API keys, no usage fees.
+No heavy downloads on workshop day -- just Docker, .NET, and an API key.
 
 ---
 

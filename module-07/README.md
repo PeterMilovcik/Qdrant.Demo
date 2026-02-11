@@ -17,7 +17,7 @@ By the end of this module you will have:
 
 ### Why chunk?
 
-Embedding models have a **token limit** (e.g. `nomic-embed-text` has a context window of 8,192 tokens). If your document is longer than that, the API call fails. Even shorter documents can produce lower-quality embeddings when the text is too long — the model has to compress too much meaning into a single vector.
+Embedding models have a **token limit** (e.g. `text-embedding-3-small` has a context window of 8,191 tokens). If your document is longer than that, the API call fails. Even shorter documents can produce lower-quality embeddings when the text is too long — the model has to compress too much meaning into a single vector.
 
 **Chunking** splits a long document into smaller pieces, each of which gets its own embedding vector. This means:
 - Each chunk is within the model's token limit

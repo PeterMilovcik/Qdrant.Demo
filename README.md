@@ -1,6 +1,6 @@
 ﻿# Qdrant.Demo — RAG Workshop
 
-A hands-on **.NET 10 + Qdrant + Ollama** workshop that teaches how to build a complete **Retrieval-Augmented Generation (RAG)** solution from scratch. You'll start with an empty API, and module by module, add indexing, search, metadata filtering, chat, chunking, and batch operations — learning one concept at a time.
+A hands-on **.NET 10 + Qdrant + OpenAI** workshop that teaches how to build a complete **Retrieval-Augmented Generation (RAG)** solution from scratch. You'll start with an empty API, and module by module, add indexing, search, metadata filtering, chat, chunking, and batch operations — learning one concept at a time.
 
 ```
 ┌──────────────┐      embed       ┌───────────────┐
@@ -17,7 +17,7 @@ A hands-on **.NET 10 + Qdrant + Ollama** workshop that teaches how to build a co
                                   └───────────────┘      │  context
                                                          ▼
                                                   ┌──────────────┐
-                                                  │  Ollama LLM  │
+                                                  │  OpenAI LLM  │
                                                   │  (chat)      │
                                                   └──────┬───────┘
                                                          ▼
@@ -57,12 +57,12 @@ The [`completed/`](completed/) folder contains the final state with **all** feat
 |------|---------|-----|
 | [Docker Desktop](https://www.docker.com/products/docker-desktop/) | 4.x+ | Runs the Qdrant vector database |
 | [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | 10.0+ | Build & run the API locally |
-| [Ollama](https://ollama.com/) | latest | Runs local AI models (embeddings + chat) |
+| [OpenAI API key](https://platform.openai.com/api-keys) | -- | Embeddings (`text-embedding-3-small`) and chat (`gpt-4o-mini`) |
 | `curl` or similar HTTP client | -- | Test the API endpoints |
 
-> **Cost note:** Ollama runs locally -- no API keys, no usage fees. The first run downloads models (~274 MB for nomic-embed-text, ~2 GB for llama3.2) and may take a few minutes.
+> **Cost note:** The workshop uses OpenAI's cheapest models. Expected cost is well under $1 per participant for the full workshop.
 
-> **Running a workshop?** Send the [pre-workshop email](materials/pre-workshop-email.md) to participants ~1 week before. It lists everything they need to install and download ahead of time, avoiding a bandwidth bottleneck on workshop day. This setup is **corporate-network friendly** -- Qdrant pulls from Docker Hub, and Ollama runs natively using the host OS certificate store.
+> **Running a workshop?** Send the [pre-workshop email](materials/pre-workshop-email.md) to participants ~1 week before. It lists everything they need to install ahead of time. This setup is **corporate-network friendly** -- .NET uses the Windows certificate store, so corporate SSL inspection proxies work transparently.
 
 ---
 
@@ -139,7 +139,7 @@ This workshop implements **all three steps** across the modules above.
 | Term | Definition |
 |------|------------|
 | **Embedding** | A fixed-length array of floats that represents the semantic meaning of text. Similar texts produce similar vectors. |
-| **Vector** | A list of numbers (e.g. 768 floats). In this context, it is the embedding of a piece of text. |
+| **Vector** | A list of numbers (e.g. 1536 floats). In this context, it is the embedding of a piece of text. |
 | **Cosine similarity** | A measure of how similar two vectors are, ranging from 0 (unrelated) to 1 (identical meaning). |
 | **Collection** | A Qdrant container that holds vectors of the same dimensionality — analogous to a database table. |
 | **Point** | A single entry in a Qdrant collection: a unique id + a vector + an optional payload (metadata). |
@@ -159,8 +159,8 @@ This workshop implements **all three steps** across the modules above.
 |-----------|------|
 | **Qdrant** (Docker) | Open-source vector database — stores embeddings + payload metadata |
 | **.NET 10 Web API** | Minimal API that exposes indexing, search, and chat endpoints |
-| **Ollama Embeddings** | `nomic-embed-text` model (768 dimensions) converts text → vectors |
-| **Ollama Chat** | `llama3.2` model generates answers grounded in retrieved documents |
+| **OpenAI Embeddings** | `text-embedding-3-small` model (1536 dimensions) converts text → vectors |
+| **OpenAI Chat** | `gpt-4o-mini` model generates answers grounded in retrieved documents |
 | **Docker Compose** | Runs Qdrant in a container |
 
 ---
@@ -199,7 +199,7 @@ See each module's README for detailed request/response examples.
 | `Models/Requests.cs` | All DTOs — upsert, search, chat requests/responses |
 | `Models/ChunkingOptions.cs` | Chunking configuration (max size, overlap) |
 | `Models/TextChunk.cs` | A single chunk produced by the text chunker |
-| `Services/EmbeddingService.cs` | Text → vector embedding via Ollama (`IEmbeddingGenerator<string, Embedding<float>>`) |
+| `Services/EmbeddingService.cs` | Text → vector embedding via OpenAI (`IEmbeddingGenerator<string, Embedding<float>>`) |
 | `Services/DocumentIndexer.cs` | Embed + chunk + upsert orchestration |
 | `Services/QdrantFilterFactory.cs` | Tag dictionary → Qdrant filter (gRPC + REST) |
 | `Services/QdrantBootstrapper.cs` | Creates the Qdrant collection at startup with retries |

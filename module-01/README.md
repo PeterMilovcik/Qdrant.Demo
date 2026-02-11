@@ -1,6 +1,6 @@
 # Module 1 — Your First Document
 
-> **~15 min** · Requires Ollama running locally · Builds on [Module 0](../module-00/README.md)
+> **~15 min** · Requires an OpenAI API key · Builds on [Module 0](../module-00/README.md)
 
 ## Learning objective
 
@@ -17,7 +17,7 @@ By the end of this module you will have:
 
 ### What are embeddings?
 
-An **embedding** is a list of floating-point numbers (a **vector**) that captures the *meaning* of a piece of text. The Ollama `nomic-embed-text` model produces a vector of **768 floats** for any input text.
+An **embedding** is a list of floating-point numbers (a **vector**) that captures the *meaning* of a piece of text. The OpenAI `text-embedding-3-small` model produces a vector of **1536 floats** for any input text.
 
 **Key insight:** Texts with similar meaning produce vectors that are close together in vector space. "The cat sat on the mat" and "A kitten was sitting on a rug" will have very similar vectors, even though the words are different.
 
@@ -28,7 +28,7 @@ This is what makes semantic search possible — instead of matching keywords, we
 When you call `POST /documents`, the API:
 
 1. **Hashes the id** (or the text, if no id is given) into a deterministic UUID — the `pointId`
-2. **Calls Ollama** to generate an embedding (768 floats) from the text
+2. **Calls OpenAI** to generate an embedding (1536 floats) from the text
 3. **Builds a Qdrant point** with the UUID, the vector, and a payload containing the text + a timestamp
 4. **Upserts** the point into Qdrant (insert-or-update — if the point-id already exists, it's overwritten)
 
@@ -51,34 +51,32 @@ This means **re-indexing the same document is safe** — it just overwrites the 
 | `Models/PayloadKeys.cs` | Constants for payload field names (`text`, `indexed_at_ms`) |
 | `Models/Requests.cs` | `DocumentUpsertRequest` and `DocumentUpsertResponse` DTOs |
 | `Services/IEmbeddingService.cs` | Interface for text → vector conversion |
-| `Services/EmbeddingService.cs` | Ollama implementation of the embedding service (via `IEmbeddingGenerator<string, Embedding<float>>`) |
+| `Services/EmbeddingService.cs` | OpenAI implementation of the embedding service (via `IEmbeddingGenerator<string, Embedding<float>>`) |
 | `Services/IDocumentIndexer.cs` | Interface for the embed + upsert pipeline |
 | `Services/DocumentIndexer.cs` | Implementation: hash id → embed → build point → upsert |
 | `Endpoints/DocumentEndpoints.cs` | `POST /documents` endpoint |
 
 | Changed file | What changed |
 |-------------|-------------|
-| `Program.cs` | Added Ollama config, `IEmbeddingGenerator<string, Embedding<float>>`, `IEmbeddingService`, `IDocumentIndexer`, `MapDocumentEndpoints()` |
-| `Qdrant.Demo.Api.csproj` | Added `OllamaSharp` and `Microsoft.Extensions.AI` NuGet packages |
-| `appsettings.json` | Added `Ollama.EmbeddingModel` |
-| `docker-compose.yml` | Unchanged — Qdrant only (Ollama runs natively on your machine) |
+| `Program.cs` | Added OpenAI config, `IEmbeddingGenerator<string, Embedding<float>>`, `IEmbeddingService`, `IDocumentIndexer`, `MapDocumentEndpoints()` |
+| `Qdrant.Demo.Api.csproj` | Added `Microsoft.Extensions.AI.OpenAI` and `Microsoft.Extensions.AI` NuGet packages |
+| `appsettings.json` | Added `OpenAI.EmbeddingModel` |
+| `docker-compose.yml` | Unchanged — Qdrant only |
 
 ---
 
-## Step 1 — Make sure Ollama is running
+## Step 1 — Set your OpenAI API key
 
-Ollama must be running locally with the `nomic-embed-text` model. If you haven't already:
+This module introduces OpenAI for embeddings. Set your API key as an environment variable:
 
-```bash
-# Install Ollama from https://ollama.com (one-click installer)
-# Then pull the embedding model:
-ollama pull nomic-embed-text
+```powershell
+# PowerShell
+$env:OPENAI_API_KEY = "sk-..."
 ```
 
-Verify it's ready:
-
 ```bash
-ollama list   # should show nomic-embed-text
+# bash / zsh
+export OPENAI_API_KEY="sk-..."
 ```
 
 ## Step 2 — Start Qdrant and run the API
@@ -135,7 +133,7 @@ Open **http://localhost:6333/dashboard** → click the `documents` collection.
 
 You should see **1 point**. Click on it to inspect:
 - **Id:** the deterministic UUID
-- **Vector:** 768 floating-point numbers (the embedding!)
+- **Vector:** 1536 floating-point numbers (the embedding!)
 - **Payload:** `text` (your document text) and `indexed_at_ms` (timestamp)
 
 This is what an embedding looks like in practice — a long list of numbers that captures the meaning of your text.
@@ -209,7 +207,7 @@ You should see **10 tests passed** — covering `StringExtensions` (4 tests) and
 At this point you have:
 
 - [x] 3+ documents indexed in Qdrant
-- [x] Seen real embeddings (768-dimensional vectors) in the Dashboard
+- [x] Seen real embeddings (1536-dimensional vectors) in the Dashboard
 - [x] Verified idempotent upserts (re-indexing doesn't create duplicates)
 - [x] Understanding of: embeddings, points, payloads, deterministic point-ids
 
@@ -224,6 +222,6 @@ Before moving to the next module, stop everything started in this module:
 docker compose down
 ```
 
-This stops Qdrant so the next module starts fresh. Ollama keeps running in the background (which is fine — models stay loaded).
+This stops Qdrant so the next module starts fresh.
 
 **Next →** [Module 2 — Similarity Search](../module-02/README.md)

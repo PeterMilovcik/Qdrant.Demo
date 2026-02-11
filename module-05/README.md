@@ -59,26 +59,13 @@ This is a hard-coded default in Module 5. In Module 6 you'll make it customizabl
 |-------------|-------------|
 | `Models/Requests.cs` | Added `ChatRequest(Question, K)`, `ChatResponse`, `ChatSource` records |
 | `Program.cs` | Added `IChatClient` registration, `chatModel` config, `MapChatEndpoints()` |
-| `docker-compose.yml` | Unchanged — Qdrant only (Ollama + chat model run natively on your machine) |
+| `docker-compose.yml` | Unchanged — Qdrant only |
 
 ---
 
-## Step 1 — Make sure Ollama has the chat model
+## Step 1 — Start Qdrant and run the API
 
-This module introduces the chat LLM. Make sure you have both models:
-
-```bash
-ollama pull nomic-embed-text   # if not already pulled
-ollama pull llama3.2            # ~2 GB on first download
-```
-
-Verify:
-
-```bash
-ollama list   # should show nomic-embed-text AND llama3.2
-```
-
-## Step 2 — Start Qdrant and run the API
+This module introduces the chat LLM (`gpt-4o-mini`). Make sure your `OPENAI_API_KEY` environment variable is set (see [Module 1](../module-01/README.md#step-1--set-your-openai-api-key)).
 
 ```bash
 cd module-05

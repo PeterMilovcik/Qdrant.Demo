@@ -187,6 +187,6 @@ When you’re done exploring, stop everything:
 docker compose down
 ```
 
-> **Tip:** If you want to remove all downloaded Ollama models and Qdrant data as well, use `docker compose down -v` to also delete the volumes.
+> **Tip:** If you want to remove all Qdrant data as well, use `docker compose down -v` to also delete the volumes.
 
 See the [completed/](../completed/) folder for the full reference implementation.

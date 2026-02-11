@@ -30,7 +30,7 @@ Keep these three things visible throughout the workshop:
 **Qdrant** is an open-source vector database. It stores **points** — each point has:
 
 - A **unique id** (UUID or integer)
-- A **vector** (an array of floats — we'll use 768 dimensions)
+- A **vector** (an array of floats — we'll use 1536 dimensions)
 - An optional **payload** (key/value metadata)
 
 Points live inside **collections**. A collection is like a database table — all vectors in a collection must have the same dimensionality.
@@ -115,7 +115,7 @@ Try calling `GET /` from Swagger — you should see the configuration JSON.
 Go back to **http://localhost:6333/dashboard**. You should now see a `documents` collection listed. Click on it to explore — it's empty (0 points), but the collection is ready.
 
 **Notice:**
-- **Dimension:** 768 (matching `nomic-embed-text`)
+- **Dimension:** 1536 (matching `text-embedding-3-small`)
 - **Distance:** Cosine (we'll use cosine similarity for searching)
 
 ## Step 4 — Inspect the code
@@ -138,7 +138,7 @@ Open these files and read through them:
 Open the Qdrant Dashboard and confirm:
 - The `documents` collection exists
 - It has 0 points
-- The vector dimension is 768
+- The vector dimension is 1536
 - The distance metric is Cosine
 
 ### Exercise 0.2 — Call the info endpoint
@@ -159,7 +159,7 @@ Expected response:
     "http": 6333,
     "grpc": 6334,
     "collection": "documents",
-    "embeddingDim": 768
+    "embeddingDim": 1536
   }
 }
 ```
