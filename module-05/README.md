@@ -21,12 +21,15 @@ By the end of this module you will have:
 1. **Retrieve** — embed the user's question, search the vector database for similar documents
 2. **Generate** — feed those documents as context to a Large Language Model (LLM), which writes a grounded answer
 
-```
-Question → Embed → Search Qdrant → Top-K documents
-                                          ↓
-                   LLM ← System prompt + Context + Question
-                                          ↓
-                                      Answer
+```mermaid
+flowchart LR
+    Q[Question] --> E[Embed]
+    E --> S[Search Qdrant]
+    S --> D[Top-K documents]
+    D --> LLM
+    SP[System prompt] --> LLM
+    Q --> LLM
+    LLM --> A[Answer]
 ```
 
 ### Why RAG instead of just asking the LLM?
