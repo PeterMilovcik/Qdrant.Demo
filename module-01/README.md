@@ -108,18 +108,21 @@ dotnet run
 
 ## Step 3 — Index your first document
 
-Open Swagger UI or use curl:
+1. Open **Swagger UI** in your browser: **http://localhost:8080/swagger**
+2. Find the **POST /documents** endpoint and click it to expand
+3. Click the **Try it out** button
+4. Replace the example JSON in the **Request body** with:
 
-```bash
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "article-001",
-    "text": "Photosynthesis is the process by which green plants convert sunlight into chemical energy, producing oxygen as a byproduct."
-  }'
+```json
+{
+  "id": "article-001",
+  "text": "Photosynthesis is the process by which green plants convert sunlight into chemical energy, producing oxygen as a byproduct."
+}
 ```
 
-Response:
+5. Click **Execute**
+
+In the **Response body** section below you should see something like:
 
 ```json
 {
@@ -140,22 +143,24 @@ This is what an embedding looks like in practice — a long list of numbers that
 
 ## Step 5 — Index two more documents
 
-```bash
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "article-002",
-    "text": "Quantum entanglement is a phenomenon where two particles become linked, so the quantum state of one instantly influences the other, regardless of distance."
-  }'
+Back in **Swagger UI** (`http://localhost:8080/swagger`), use **POST /documents** the same way to index two more documents.
+
+**Document 2** — paste this into the request body and click **Execute**:
+
+```json
+{
+  "id": "article-002",
+  "text": "Quantum entanglement is a phenomenon where two particles become linked, so the quantum state of one instantly influences the other, regardless of distance."
+}
 ```
 
-```bash
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "article-003",
-    "text": "Machine learning is a subset of artificial intelligence where algorithms learn patterns from data rather than being explicitly programmed."
-  }'
+**Document 3** — paste this into the request body and click **Execute**:
+
+```json
+{
+  "id": "article-003",
+  "text": "Machine learning is a subset of artificial intelligence where algorithms learn patterns from data rather than being explicitly programmed."
+}
 ```
 
 Check the Dashboard — you should now see **3 points**.
@@ -166,30 +171,28 @@ Check the Dashboard — you should now see **3 points**.
 
 ### Exercise 1.1 — Re-index and observe idempotency
 
-Index `article-001` again with the **exact same id**:
+In **Swagger UI**, use **POST /documents** to index `article-001` again with the **exact same id and text**:
 
-```bash
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "article-001",
-    "text": "Photosynthesis is the process by which green plants convert sunlight into chemical energy, producing oxygen as a byproduct."
-  }'
+```json
+{
+  "id": "article-001",
+  "text": "Photosynthesis is the process by which green plants convert sunlight into chemical energy, producing oxygen as a byproduct."
+}
 ```
 
-Check the Dashboard — you should still see **3 points**, not 4. The existing point was overwritten. The `pointId` in the response is identical to the first time.
+Click **Execute**, then check the Dashboard — you should still see **3 points**, not 4. The existing point was overwritten. The `pointId` in the response is identical to the first time.
 
 ### Exercise 1.2 — Index without an explicit id
 
-```bash
-curl -X POST http://localhost:8080/documents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "text": "Water boils at 100 degrees Celsius at sea level."
-  }'
+In **Swagger UI**, use **POST /documents** with a body that has **no `id` field**:
+
+```json
+{
+  "text": "Water boils at 100 degrees Celsius at sea level."
+}
 ```
 
-Notice: the `pointId` is derived from the text hash. If you index the exact same text again, you'll get the same `pointId` — still idempotent.
+Click **Execute** and note the `pointId` in the response. It is derived from the text hash. If you execute the exact same request again, you'll get the same `pointId` — still idempotent.
 
 ### Exercise 1.3 — Run the tests
 
