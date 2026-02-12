@@ -62,7 +62,7 @@
                  margin-bottom: 1rem; }
     .msg { margin-bottom: .75rem; max-width: 85%; }
     .msg.user { margin-left: auto; text-align: right; }
-    .msg.user .bubble { background: var(--pico-primary); color: var(--pico-primary-inverse);
+    .msg.user .bubble { background: var(--pico-primary); color: #fff;
                         display: inline-block; padding: .5rem .85rem; border-radius: 1rem 1rem .2rem 1rem; }
     .msg.assistant .bubble { background: var(--pico-card-background-color); display: inline-block;
                              padding: .5rem .85rem; border-radius: 1rem 1rem 1rem .2rem;
@@ -71,13 +71,13 @@
     .sources-toggle { margin-top: .35rem; text-align: left; }
     .sources-toggle summary { font-size: .8rem; cursor: pointer; }
     .thinking { opacity: .5; font-style: italic; }
-    .chat-input { display: flex; gap: .5rem; }
-    .chat-input input { margin-bottom: 0; flex: 1; }
-    .chat-input button { margin-bottom: 0; white-space: nowrap; }
+    .chat-input { display: flex; gap: .5rem; position: relative; z-index: 1; }
+    .chat-input textarea { margin-bottom: 0; flex: 1; resize: none; field-sizing: content; max-height: 6rem; }
+    .chat-input button { margin-bottom: 0; white-space: nowrap; align-self: end; }
     .chat-settings { margin-bottom: 1rem; }
     .chat-settings summary { font-size: .85rem; cursor: pointer; margin-bottom: .5rem; }
     .chat-clear { font-size: .8rem; cursor: pointer; background: none; border: none;
-                  color: var(--pico-muted-color); float: right; }
+                  color: var(--pico-muted-color); float: right; margin-bottom: .5rem; }
 
     /* ── batch ── */
     .batch-stats { display: flex; gap: 1.5rem; margin: .75rem 0; font-size: .95rem; }
@@ -103,6 +103,7 @@
     /* ── misc ── */
     footer { text-align: center; padding: 1rem; font-size: .8rem; opacity: .5; }
     .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+    #themeSelect { margin-bottom: 0; padding: .25rem 2rem .25rem .5rem; font-size: .8rem; width: auto; }
   </style>
 </head>
 <body>
@@ -115,6 +116,13 @@
     <li><a class="tab-btn" data-tab="search" href="#">Search</a></li>
     <li><a class="tab-btn" data-tab="docs" href="#">Documents</a></li>
     <li><a class="tab-btn" data-tab="status" href="#">Status</a></li>
+    <li>
+      <select id="themeSelect" onchange="setTheme(this.value)" aria-label="Theme">
+        <option value="auto">Auto</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+    </li>
   </ul>
 </nav>
 
@@ -127,7 +135,9 @@
     <p>Ask questions — the RAG pipeline retrieves relevant chunks and feeds them to the LLM.</p>
   </hgroup>
 
-  <button class="chat-clear" onclick="clearChat()">Clear conversation</button>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:.25rem">
+    <button class="chat-clear" onclick="clearChat()">Clear conversation</button>
+  </div>
   <div class="chat-area" id="chatArea"></div>
 
   <details class="chat-settings">
@@ -146,10 +156,10 @@
     </label>
   </details>
 
-  <form class="chat-input" onsubmit="sendChat(event)">
-    <input type="text" id="chatQ" placeholder="Ask a question about your documents…" required autocomplete="off" />
-    <button type="submit" id="chatSend">Send →</button>
-  </form>
+  <div class="chat-input">
+    <textarea id="chatQ" rows="1" placeholder="Ask a question about your documents…"></textarea>
+    <button type="button" id="chatSend" onclick="sendChat()">Send →</button>
+  </div>
 </section>
 
 <!-- ═══════════════════ SEARCH ═══════════════════ -->
@@ -332,6 +342,17 @@ function createTagWidget(containerId, label = 'Tags') {
 
 function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 
+// ── theme selector ──
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('theme', theme);
+}
+(function() {
+  const saved = localStorage.getItem('theme') || 'auto';
+  document.documentElement.setAttribute('data-theme', saved);
+  document.getElementById('themeSelect').value = saved;
+})();
+
 // init tag widgets
 const getTopkTags   = createTagWidget('topkTagsWidget');
 const getThreshTags = createTagWidget('threshTagsWidget');
@@ -501,8 +522,7 @@ function appendMsg(role, html) {
   return div;
 }
 
-async function sendChat(e) {
-  e.preventDefault();
+async function sendChat() {
   const q = document.getElementById('chatQ').value.trim();
   if (!q) return;
   document.getElementById('chatQ').value = '';
@@ -550,9 +570,9 @@ async function sendChat(e) {
   chatArea.scrollTop = chatArea.scrollHeight;
 }
 
-// submit chat on Enter (Shift+Enter for newline — but input is single-line so just Enter)
+// submit chat on Enter (Shift+Enter for newline)
 document.getElementById('chatQ').addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.querySelector('.chat-input').requestSubmit(); }
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
 });
 
 // ── status ──
