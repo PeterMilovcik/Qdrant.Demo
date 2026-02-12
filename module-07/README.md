@@ -227,6 +227,31 @@ In **Swagger UI**, find the **POST /search/topk** endpoint, click **Try it out**
 
 You may see multiple chunks from the same source document in the results, each with its own score. The payload will include `source_doc_id`, `chunk_index`, and `total_chunks`. Notice how different chunks match with different scores — the chunk that mentions European arrival should rank highest.
 
+## Step 5 — Chat with chunked documents
+
+The `/chat` endpoint works seamlessly with chunks — it retrieves the most relevant chunks (not whole documents) and feeds them as context to the LLM.
+
+In **Swagger UI**, find the **POST /chat** endpoint, click **Try it out**, paste the following body and click **Execute**:
+
+```json
+{
+  "question": "How did coffee spread from Africa to Europe and what role did coffeehouses play?",
+  "k": 5
+}
+```
+
+The LLM now gets the most relevant **chunks** as context, not entire documents. Because the coffee article was split into 4 chunks, the model pulls from exactly the chunks that cover the European expansion and coffeehouse culture — giving a more focused and accurate answer than if it received one giant text block.
+
+Try a question that spans multiple chunks:
+
+```json
+{
+  "question": "Compare the role of coffeehouses in the Middle East versus England"
+}
+```
+
+The RAG pipeline retrieves chunks from different parts of the same document, assembling cross-section context automatically.
+
 ---
 
 ## Exercises
@@ -285,7 +310,20 @@ At this point you have:
 Before moving to the next module, stop everything started in this module:
 
 1. **Stop the local API** — press `Ctrl+C` in the terminal where `dotnet run` is running
-2. **Stop Docker containers** — from the `module-07` directory:
+2. **Reset environment variables** — if you changed chunk settings in Exercise 7.1, clear them so the next module uses defaults:
+
+```powershell
+# PowerShell
+Remove-Item Env:CHUNKING_MAX_SIZE -ErrorAction SilentlyContinue
+Remove-Item Env:CHUNKING_OVERLAP -ErrorAction SilentlyContinue
+```
+
+```bash
+# Linux/macOS
+unset CHUNKING_MAX_SIZE CHUNKING_OVERLAP
+```
+
+3. **Stop Docker containers** — from the `module-07` directory:
 
 ```bash
 docker compose down
