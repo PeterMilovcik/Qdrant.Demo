@@ -40,7 +40,7 @@ The [`completed/`](completed/) folder contains the final state with **all** feat
 
 | Tool | Version | Why |
 |------|---------|-----|
-| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | 4.x+ | Runs the Qdrant vector database |
+| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | 4.x+ | Runs the Qdrant vector database ([free alternatives](materials/docker-alternatives.md)) |
 | [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | 10.0+ | Build & run the API locally |
 | [OpenAI API key](https://platform.openai.com/api-keys) | -- | Embeddings (`text-embedding-3-small`) and chat (`gpt-4o-mini`) |
 | `curl` or similar HTTP client | -- | Test the API endpoints |

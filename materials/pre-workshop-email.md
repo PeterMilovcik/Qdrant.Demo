@@ -46,7 +46,7 @@ To keep workshop day smooth, please install the following ahead of time:
 
 | # | Tool | Link |
 |---|------|------|
-| 1 | **Docker Desktop** | [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/) |
+| 1 | **Docker Desktop** | [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/) — if your company requires a licence alternative, see [Docker Alternatives](docker-alternatives.md) |
 | 2 | **.NET 10 SDK** | [dotnet.microsoft.com/download/dotnet/10.0](https://dotnet.microsoft.com/download/dotnet/10.0) |
 | 3 | **Git** | [git-scm.com](https://git-scm.com/) |
 | 4 | **VS Code** *(recommended)* | [code.visualstudio.com](https://code.visualstudio.com/) — with the **C# Dev Kit** extension |
