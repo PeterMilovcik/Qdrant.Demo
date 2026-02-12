@@ -1,6 +1,6 @@
 # Module 7 — Chunking
 
-> **~20 min** · Builds on [Module 6](../module-06/README.md)
+> **~25 min** · Builds on [Module 6](../module-06/README.md)
 
 ## Learning objective
 

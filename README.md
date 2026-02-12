@@ -26,11 +26,11 @@ Each module is a **self-contained, fully buildable** .NET project in its own fol
 | **4** | [Filtered Search](module-04/README.md) | Tag filters, threshold search, metadata-only search, payload indexes | ~20 min |
 | **5** | [RAG Chat](module-05/README.md) | The full RAG pipeline, `POST /chat`, system prompt, hallucination guardrail | ~20 min |
 | **6** | [Advanced Chat](module-06/README.md) | Custom system prompts, filtered chat, prompt engineering | ~15 min |
-| **7** | [Chunking Long Documents](module-07/README.md) | Token limits, text chunking, overlap, sentence boundaries | ~20 min |
+| **7** | [Chunking Long Documents](module-07/README.md) | Token limits, text chunking, overlap, sentence boundaries | ~25 min |
 | **8** | [Batch Operations](module-08/README.md) | `POST /documents/batch`, error handling, bulk ingestion | ~10 min |
-| **9** | [Chat UI](module-09/README.md) | Static file serving, single-file frontend, visual RAG experience | ~15 min |
+| **9** | [Chat UI](module-09/README.md) | Static file serving, single-file frontend, visual RAG experience | ~20 min |
 
-> **Total workshop time:** ~2.5 hours at a comfortable pace.
+> **Total workshop time:** ~3 hours at a comfortable pace.
 
 The [`completed/`](completed/) folder contains the final state with **all** features for quick reference.
 

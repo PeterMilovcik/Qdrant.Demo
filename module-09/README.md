@@ -1,6 +1,6 @@
 # Module 9 — Chat UI
 
-> **~15 min** · Builds on [Module 8](../module-08/README.md) · **Bonus module**
+> **~20 min** · Builds on [Module 8](../module-08/README.md) · **Bonus module**
 
 ## Learning objective
 
