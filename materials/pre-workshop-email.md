@@ -4,82 +4,80 @@
 
 ---
 
-**Subject:** Action Required -- Setup for the RAG Workshop on [DATE]
+**Subject:** You're Invited -- RAG Workshop on [DATE]
 
 Hi everyone,
 
-I'm looking forward to our **Qdrant.Demo -- RAG Workshop** on **[DATE]** at **[TIME]** in **[LOCATION / Teams link]**.
+You're invited to a hands-on **RAG Workshop** on **[DATE]** at **[TIME]** in **[LOCATION / Teams link]**.
 
-To make sure we hit the ground running, **please complete the setup steps below before the workshop**. This should take about 10 minutes.
+## What is this about?
 
----
+**Retrieval-Augmented Generation (RAG)** is one of the most practical ways to combine Large Language Models with your own data. Instead of hoping the AI "knows" the answer, you feed it the right documents first — so every response is grounded in facts, not guesswork.
 
-## What to install
+In this workshop, we'll build a complete RAG solution from scratch using **.NET 10, Qdrant (a vector database), and OpenAI**. No slides, no lectures — just code, step by step.
 
-| # | Tool | Link | Why |
-|---|------|------|-----|
-| 1 | **Docker Desktop** | [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/) | Runs the Qdrant vector database |
-| 2 | **.NET 10 SDK** | [dotnet.microsoft.com/download/dotnet/10.0](https://dotnet.microsoft.com/download/dotnet/10.0) | Build & run the API project |
-| 3 | **Git** | [git-scm.com](https://git-scm.com/) | Clone the workshop repository |
-| 4 | **VS Code** *(recommended)* | [code.visualstudio.com](https://code.visualstudio.com/) | Recommended editor -- install the **C# Dev Kit** extension for the best experience |
+**Workshop repository:** 
 
-## Pre-download the Qdrant image (~150 MB)
+[https://github.com/PeterMilovcik/Qdrant.Demo](https://github.com/PeterMilovcik/Qdrant.Demo)
 
-This avoids a download bottleneck on workshop day if everyone starts pulling at the same time.
+> Bookmark it now so you have it ready on workshop day.
 
-### 1. Clone the repository
+## What you'll walk away with
+
+By the end of the ~3-hour session, you'll have built a working API that can:
+
+- Turn documents into **vector embeddings** and store them in a database
+- Find documents by **meaning** (not keywords) using cosine similarity
+- Filter results by **metadata tags**
+- Answer questions using **OpenAI**, grounded in your own documents
+- Handle long documents by **chunking** them intelligently
+- Process **batch uploads** efficiently
+- Serve a **chat UI** where you can interact with everything visually
+
+Every module is self-contained and fully working — you'll run and test each one as you go.
+
+## Who is this for?
+
+Anyone comfortable with **C# / .NET** who's curious about AI, embeddings, vector databases, or RAG. No prior AI or ML experience needed — we start from zero and build up.
+
+## What to prepare (10 minutes)
+
+To keep workshop day smooth, please install the following ahead of time:
+
+| # | Tool | Link |
+|---|------|------|
+| 1 | **Docker Desktop** | [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/) |
+| 2 | **.NET 10 SDK** | [dotnet.microsoft.com/download/dotnet/10.0](https://dotnet.microsoft.com/download/dotnet/10.0) |
+| 3 | **Git** | [git-scm.com](https://git-scm.com/) |
+| 4 | **VS Code** *(recommended)* | [code.visualstudio.com](https://code.visualstudio.com/) — with the **C# Dev Kit** extension |
+
+Then clone the repo and pull the Qdrant Docker image (~150 MB) so we don't all download it at the same time:
 
 ```bash
 git clone https://github.com/PeterMilovcik/Qdrant.Demo.git
 cd Qdrant.Demo
-```
-
-### 2. Pull the Qdrant Docker image
-
-Make sure Docker Desktop is running, then:
-
-```bash
 docker pull qdrant/qdrant:v1.16.3
 ```
 
-### 3. Verify your setup
+Quick sanity check:
 
 ```bash
-docker --version                            # Docker version 27.x or later
-dotnet --version                            # 10.0.101 or later
-docker images qdrant/qdrant --format "table {{.Repository}}\t{{.Tag}}"   # Should show v1.16.3
+docker --version        # 27.x or later
+dotnet --version        # 10.0.101 or later
 ```
 
-If all three checks pass, you're ready!
+If both work — you're all set!
 
-## OpenAI API key
-
-The workshop uses **OpenAI** for embeddings and chat (models: `text-embedding-3-small` and `gpt-4o-mini`). A shared API key will be provided by the workshop facilitator at the start of the session -- you do not need to create your own.
-
----
-
-## What we'll build
-
-Over **~2.5 hours**, we'll build a complete **Retrieval-Augmented Generation (RAG)** API from scratch:
-
-- Store documents as vectors in a Qdrant vector database
-- Search by meaning (not keywords) using cosine similarity
-- Add metadata filtering
-- Wire up OpenAI to answer questions grounded in your documents
-- Handle long documents with text chunking
-
-No heavy downloads on workshop day -- just Docker, .NET, and an API key.
-
----
+> **OpenAI API key** will be provided at the start of the session. You don't need your own.
 
 ## Questions?
 
-Reply to this email or ping me on MS Teams.
+Reply to this email or ping me on Teams. Happy to help with setup if anything doesn't work.
 
-See you on **[DATE]**!
+Looking forward to building this with you on **[DATE]**!
 
 [YOUR NAME]
 
 ---
 
-> *This email was generated from the [materials/](https://github.com/PeterMilovcik/Qdrant.Demo/tree/main/materials) folder in the workshop repository.*
+> *This template lives in the [materials/](https://github.com/PeterMilovcik/Qdrant.Demo/tree/main/materials) folder of the workshop repository.*
