@@ -189,9 +189,25 @@ In the **Response body** you should see:
 
 ## Step 3 — Index a long document (multiple chunks)
 
-Using **POST /documents** in Swagger UI, index a document longer than 2000 characters. Paste a long text (or repeat a sentence many times) into the `text` field. The response should show `totalChunks > 1`.
+Using **POST /documents** in Swagger UI, paste the following JSON body and click **Execute**. The text is over 3,000 characters, so the chunker will split it into multiple chunks automatically:
 
-> **Tip:** You can paste any article or paragraph text — as long as it exceeds 2000 characters, the chunker will split it automatically.
+```json
+{
+  "id": "history-coffee-001",
+  "text": "The history of coffee begins in the ancient highlands of Ethiopia, where legend credits a goat herder named Kaldi with its discovery around the ninth century. Kaldi noticed that his goats became unusually energetic after eating berries from a certain tree. Curious, he tried the berries himself and experienced a similar burst of alertness. He brought the berries to a local monastery, where monks brewed them into a drink that helped them stay awake during long evening prayers. Word of the energizing beverage spread quickly, and by the fifteenth century coffee was being cultivated in the terraced hills of Yemen. Sufi monks in particular valued the drink for its ability to sustain deep concentration during nighttime devotions and marathon sessions of prayer. The port city of Mocha on the Red Sea coast became a major hub for the coffee trade, giving its name to a style of coffee still recognized today. From Yemen the drink soon reached Persia, Egypt, Syria, and the Ottoman Empire.\n\nCoffeehouses, known as qahveh khaneh, began appearing in cities across the Middle East during the sixteenth century. These establishments quickly became vibrant centers of social and intellectual activity, earning the nickname 'Schools of the Wise.' Patrons gathered to drink coffee, listen to music, watch performers, play chess and backgammon, and debate the political and philosophical questions of the day. The stimulating atmosphere of coffeehouses occasionally attracted suspicion from political and religious authorities. In Mecca, Cairo, and Constantinople, rulers attempted outright bans on coffee, arguing that it encouraged free thinking and seditious conversation. None of these prohibitions lasted long, however, because the drink's popularity proved impossible to suppress.\n\nEuropean travelers to the Near East brought back stories of the unusual dark beverage, and by the early seventeenth century coffee had arrived on the continent. It was initially met with deep suspicion. Some Catholic clergy in Italy denounced it as the 'bitter invention of Satan,' urging Pope Clement VIII to ban it outright. According to popular legend, the Pope insisted on tasting the drink before passing judgment, found it delicious, and gave it his papal blessing instead. Coffeehouses then sprang up rapidly across Europe. In England they became known as 'penny universities,' because for the price of a single penny one could purchase a cup of coffee and engage in hours of stimulating conversation with scholars, merchants, and politicians. By the mid-seventeenth century London alone boasted over three hundred coffeehouses, each attracting its own clientele of traders, writers, scientists, and artists. Lloyd's of London, the famous insurance market, began life as Edward Lloyd's coffeehouse, where ship owners and underwriters gathered to do business.\n\nThe Dutch were among the first Europeans to obtain live coffee plants and began cultivating them in their colonial territories in Java and Suriname during the late seventeenth century. France soon followed, establishing sprawling coffee plantations across the Caribbean islands of Martinique and Saint-Domingue. A single coffee plant gifted to King Louis XIV became the ancestor of millions of trees across Central and South America. The Portuguese brought coffee to Brazil in the eighteenth century, and within a hundred years Brazil had become the world's dominant producer, a position it still holds today. Meanwhile, the Boston Tea Party of 1773, in which American colonists protested British taxation by dumping tea into Boston Harbor, helped shift the young nation's preference decisively from tea to coffee. Coffee became a patriotic drink, and its association with American identity has endured ever since. Today coffee is the second most traded commodity on Earth after crude oil, sustaining the livelihoods of over twenty-five million farming families and fueling a global industry worth more than four hundred billion dollars a year, with over two billion cups consumed every single day.",
+  "tags": { "category": "history" }
+}
+```
+
+In the **Response body** you should see `totalChunks: 2` (or more) and a `chunkPointIds` array with one entry per chunk:
+
+```json
+{
+  "pointId": "abc-123...",
+  "totalChunks": 2,
+  "chunkPointIds": ["abc-123...", "def-456..."]
+}
+```
 
 ## Step 4 — Search and observe chunk results
 
@@ -199,12 +215,12 @@ In **Swagger UI**, find the **POST /search/topk** endpoint, click **Try it out**
 
 ```json
 {
-  "queryText": "biology",
+  "queryText": "How did coffee spread from Africa to Europe?",
   "k": 5
 }
 ```
 
-You may see multiple chunks from the same source document in the results, each with its own score. The payload will include `source_doc_id`, `chunk_index`, and `total_chunks`.
+You may see multiple chunks from the same source document in the results, each with its own score. The payload will include `source_doc_id`, `chunk_index`, and `total_chunks`. Notice how different chunks match with different scores — the chunk that mentions European arrival should rank highest.
 
 ---
 
