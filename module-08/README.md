@@ -216,17 +216,17 @@ You should see **48 tests passed**.
 
 Congratulations — you've completed the entire workshop! Here's everything you built:
 
-| Module | Feature | Tests |
-|--------|---------|-------|
-| 0 | Setup — Qdrant connection, Swagger, health check | — |
-| 1 | Document indexing with embeddings | 10 |
-| 2 | Top-K similarity search | 11 |
-| 3 | Tag & property metadata storage | 11 |
-| 4 | Filtered search (top-K, threshold, metadata) | 20 |
-| 5 | Basic RAG chat | 27 |
-| 6 | Advanced chat (custom prompts, filters, threshold) | 30 |
-| 7 | Text chunking with sentence-boundary awareness | 48 |
-| 8 | Batch document indexing | 48 |
+| Module | Feature |
+|--------|---------|
+| 0 | Setup — Qdrant connection, Swagger, health check |
+| 1 | Document indexing with embeddings |
+| 2 | Top-K similarity search |
+| 3 | Tag & property metadata storage |
+| 4 | Filtered search (top-K, threshold, metadata) |
+| 5 | Basic RAG chat |
+| 6 | Advanced chat (custom prompts, filters, threshold) |
+| 7 | Text chunking with sentence-boundary awareness |
+| 8 | Batch document indexing |
 
 ### What to explore next
 
