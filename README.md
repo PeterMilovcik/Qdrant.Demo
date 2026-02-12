@@ -2,29 +2,13 @@
 
 A hands-on **.NET 10 + Qdrant + OpenAI** workshop that teaches how to build a complete **Retrieval-Augmented Generation (RAG)** solution from scratch. You'll start with an empty API, and module by module, add indexing, search, metadata filtering, chat, chunking, and batch operations — learning one concept at a time.
 
-```
-┌──────────────┐      embed       ┌───────────────┐
-│  Your Text   │  ──────────────► │  Qdrant       │
-│  + metadata  │                  │  (vectors +   │
-└──────────────┘                  │   payload)    │
-                                  └───────┬───────┘
-┌──────────────┐      embed + search      │
-│  User Query  │  ──────────────────────► │
-└──────────────┘                          ▼
-                                  ┌───────────────┐
-                                  │  Ranked       │
-                                  │  Results      │──────┐
-                                  └───────────────┘      │  context
-                                                         ▼
-                                                  ┌──────────────┐
-                                                  │  OpenAI LLM  │
-                                                  │  (chat)      │
-                                                  └──────┬───────┘
-                                                         ▼
-                                                  ┌──────────────┐
-                                                  │  Grounded    │
-                                                  │  Answer      │
-                                                  └──────────────┘
+```mermaid
+flowchart LR
+    T["Your Text + metadata"] -->|embed| QD["Qdrant"]
+    UQ["User Query"] -->|embed + search| QD
+    QD --> R["Ranked Results"]
+    R -->|context| LLM["OpenAI LLM"]
+    LLM --> A["Grounded Answer"]
 ```
 
 ---
@@ -44,6 +28,7 @@ Each module is a **self-contained, fully buildable** .NET project in its own fol
 | **6** | [Advanced Chat](module-06/README.md) | Custom system prompts, filtered chat, prompt engineering | ~15 min |
 | **7** | [Chunking Long Documents](module-07/README.md) | Token limits, text chunking, overlap, sentence boundaries | ~20 min |
 | **8** | [Batch Operations](module-08/README.md) | `POST /documents/batch`, error handling, bulk ingestion | ~10 min |
+| **9** | [Chat UI](module-09/README.md) | Static file serving, single-file frontend, visual RAG experience | ~15 min |
 
 > **Total workshop time:** ~2.5 hours at a comfortable pace.
 
@@ -103,6 +88,7 @@ Qdrant.Demo/
   module-06/                        ← Advanced Chat
   module-07/                        ← Chunking Long Documents
   module-08/                        ← Batch Operations
+  module-09/                        ← Chat UI
   completed/                        ← Full reference implementation
 ```
 

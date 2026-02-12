@@ -212,30 +212,14 @@ You should see **48 tests passed**.
 
 ---
 
-## ✅ Final Checkpoint
+## ✅ Checkpoint
 
-Congratulations — you've completed the entire workshop! Here's everything you built:
+At this point you have:
 
-| Module | Feature |
-|--------|---------|
-| 0 | Setup — Qdrant connection, Swagger, health check |
-| 1 | Document indexing with embeddings |
-| 2 | Top-K similarity search |
-| 3 | Tag & property metadata storage |
-| 4 | Filtered search (top-K, threshold, metadata) |
-| 5 | Basic RAG chat |
-| 6 | Advanced chat (custom prompts, filters, threshold) |
-| 7 | Text chunking with sentence-boundary awareness |
-| 8 | Batch document indexing |
-
-### What to explore next
-
-- **Token-aware chunking** — Replace the character-based chunker with `Microsoft.ML.Tokenizers` for exact token counts
-- **Streaming chat** — Use `IChatClient.GetStreamingResponseAsync` for real-time token streaming
-- **Named vectors** — Store multiple embedding models in the same collection
-- **Hybrid search** — Combine dense (semantic) and sparse (keyword) vectors
-- **Web UI** — Build a React/Blazor frontend that calls these endpoints
-- **Authentication** — Add API keys or OAuth to protect the endpoints
+- [x] A `POST /documents/batch` endpoint for bulk ingestion
+- [x] Per-document error isolation (one failure doesn't block the rest)
+- [x] Summary response with total, succeeded, failed, and error details
+- [x] Understanding of: batch vs single upsert trade-offs, error handling patterns
 
 ## 🧹 Clean Up
 
@@ -250,4 +234,4 @@ docker compose down
 
 > **Tip:** If you want to remove all Qdrant data as well, use `docker compose down -v` to also delete the volumes.
 
-See the [completed/](../completed/) folder for the full reference implementation.
+**Next →** [Module 9 — Chat UI](../module-09/README.md) (bonus)
