@@ -222,12 +222,22 @@ The response includes:
 
 ```json
 {
-  "answer": "Plants produce energy through photosynthesis, a process where...",
+  "answer": "Plants produce energy from sunlight through the process of photosynthesis. During photosynthesis, green plants convert sunlight into chemical energy, producing glucose and oxygen as byproducts.",
   "sources": [
     {
-      "id": "abc-123...",
-      "score": 0.89,
-      "textSnippet": "Photosynthesis is the process by which green plants..."
+      "id": "6b6492a2-38cb-3f55-a58f-47956db480ee",
+      "score": 0.63348544,
+      "textSnippet": "Photosynthesis is the process by which green plants convert sunlight into chemical energy, producing glucose and oxygen as byproducts."
+    },
+    {
+      "id": "4524a713-b7c6-5758-b2f7-bee3ae446075",
+      "score": 0.17606789,
+      "textSnippet": "DNA replication is the biological process of producing two identical copies of DNA from one original DNA molecule. It occurs during the S phase of the cell cycle."
+    },
+    {
+      "id": "e96f7130-3805-f45d-8964-729ec73ebf34",
+      "score": 0.09343319,
+      "textSnippet": "Quantum entanglement is a phenomenon where two particles become linked, so the quantum state of one instantly influences the other, regardless of distance."
     }
   ]
 }
