@@ -199,13 +199,18 @@ Using **POST /documents** in Swagger UI, paste the following JSON body and click
 }
 ```
 
-In the **Response body** you should see `totalChunks: 2` (or more) and a `chunkPointIds` array with one entry per chunk:
+In the **Response body** you should see `totalChunks: 4` and a `chunkPointIds` array with one entry per chunk:
 
 ```json
 {
-  "pointId": "abc-123...",
-  "totalChunks": 2,
-  "chunkPointIds": ["abc-123...", "def-456..."]
+  "pointId": "b61e52cb-d639-1056-874c-0b77556478f5",
+  "totalChunks": 4,
+  "chunkPointIds": [
+    "b61e52cb-d639-1056-874c-0b77556478f5",
+    "b9314d56-b613-7554-9408-f110a5af0d0d",
+    "d4540e80-f35a-8c50-83e7-1d80b7282342",
+    "5ab70094-a820-d854-b12f-08bdf57cdf19"
+  ]
 }
 ```
 
