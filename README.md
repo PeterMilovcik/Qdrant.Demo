@@ -4,10 +4,12 @@ A hands-on **.NET 10 + Qdrant + OpenAI** workshop that teaches how to build a co
 
 ```mermaid
 flowchart LR
-    T["Your Text + metadata"] -->|embed| QD["Qdrant"]
-    UQ["User Query"] -->|embed + search| QD
-    QD --> R["Ranked Results"]
-    R -->|context| LLM["OpenAI LLM"]
+    T["Documents + metadata"] -->|embed| EMB["OpenAI Embeddings"]
+    EMB -->|vectors| QD[("Qdrant")]
+    UQ["User Query"] -->|embed| EMB
+    EMB -->|search| QD
+    QD -->|top results| LLM["OpenAI Chat"]
+    UQ -.->|question| LLM
     LLM --> A["Grounded Answer"]
 ```
 
