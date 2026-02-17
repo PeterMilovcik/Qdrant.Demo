@@ -14,7 +14,7 @@ You're invited to a hands-on **RAG Workshop** on **[DATE]** at **[TIME]** in **[
 
 **Retrieval-Augmented Generation (RAG)** is one of the most practical ways to combine Large Language Models with your own data. Instead of hoping the AI "knows" the answer, you feed it the right documents first — so every response is grounded in facts, not guesswork.
 
-In this workshop, we'll build a complete RAG solution from scratch using **.NET 10, Qdrant (a vector database), and OpenAI**. No slides, no lectures — just code, step by step.
+In this workshop, we'll build a complete RAG solution from scratch using **.NET 10, Qdrant (a vector database), and OpenAI**. The workshop combines guided slides with hands-on coding — you'll build each module step by step.
 
 **Workshop repository:** 
 

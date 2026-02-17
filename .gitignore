@@ -17,6 +17,9 @@ out/
 ## Docker
 qdrant_storage/
 
+## Node
+node_modules/
+
 ## IDE
 .idea/
 .vscode/
