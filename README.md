@@ -2,7 +2,7 @@
 
 Ever wondered how AI chatbots answer questions using *your* data instead of making things up? That's **Retrieval-Augmented Generation (RAG)** and this workshop teaches you how to build one from scratch.
 
-In about **3 hours**, you'll go from an empty .NET API to a fully working RAG system: store documents as vector embeddings in **Qdrant**, search them by meaning (not just keywords), and let **OpenAI** generate answers grounded in real content — with zero hallucination. Each of the 10 modules introduces exactly one concept — indexing, semantic search, metadata filtering, chat, text chunking, batch operations, so you learn by building, one step at a time.
+In about **3 hours**, you'll go from an empty .NET API to a fully working RAG system: store documents as vector embeddings in **Qdrant**, search them by meaning (not just keywords), and let **OpenAI** generate answers grounded in real content, with zero hallucination. Each of the 10 modules introduces exactly one concept (indexing, semantic search, metadata filtering, chat, text chunking, batch operations), so you learn by building, one step at a time.
 
 **Stack:** .NET 10 · Qdrant · OpenAI · Docker
 
