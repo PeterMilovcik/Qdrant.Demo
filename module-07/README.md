@@ -285,15 +285,6 @@ Third paragraph covers chemistry. Chemical reactions produce energy. Molecules c
 
 The chunker should prefer splitting at paragraph breaks or sentence ends.
 
-### Exercise 7.3 — Run the tests
-
-```bash
-cd module-07
-dotnet test
-```
-
-You should see **48 tests passed** (30 prior + 18 TextChunker).
-
 ---
 
 ## ✅ Checkpoint

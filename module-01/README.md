@@ -287,15 +287,6 @@ In **Swagger UI**, use **POST /documents** with a body that has **no `id` field*
 
 Click **Execute** and note the `pointId` in the response. It is derived from the text hash. If you execute the exact same request again, you'll get the same `pointId` — still idempotent.
 
-### Exercise 1.3 — Run the tests
-
-```bash
-cd module-01
-dotnet test
-```
-
-You should see **10 tests passed** — covering `StringExtensions` (4 tests) and `DocumentIndexer` model shapes (6 tests).
-
 ---
 
 ## ✅ Checkpoint

@@ -201,15 +201,6 @@ Using **POST /chat** in Swagger UI, try:
 
 The LLM should reference biology, physics, and computer science.
 
-### Exercise 8.3 — Run the tests
-
-```bash
-cd module-08
-dotnet test
-```
-
-You should see **48 tests passed**.
-
 ---
 
 ## ✅ Checkpoint

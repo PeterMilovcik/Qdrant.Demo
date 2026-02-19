@@ -294,15 +294,6 @@ Using **POST /search/threshold** in Swagger UI, try `"scoreThreshold": 0.8` — 
 
 Open `QdrantFilterFactoryTests.cs` and read through the tests. Notice how null/empty tags produce `null` filters (meaning "no filter"), while populated tags produce `Must` conditions.
 
-### Exercise 4.5 — Run the tests
-
-```bash
-cd module-04
-dotnet test
-```
-
-You should see **20 tests passed**.
-
 ---
 
 ## ✅ Checkpoint

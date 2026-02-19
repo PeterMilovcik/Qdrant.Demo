@@ -228,15 +228,6 @@ The physics document should rank highest — and you should see its `tag_categor
 
 Right now tags are stored but search still returns all documents ranked by similarity. In the next module you'll add **filters** so you can say "search only biology documents" or "only introductory level" — and Qdrant will narrow the candidate set *before* computing similarity.
 
-### Exercise 3.4 — Run the tests
-
-```bash
-cd module-03
-dotnet test
-```
-
-You should see **11 tests passed** (same count — no new test file this module, but the existing model tests already validate Tags/Properties).
-
 ---
 
 ## ✅ Checkpoint

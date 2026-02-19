@@ -263,15 +263,6 @@ Using **POST /search/topk** in Swagger UI, try:
 
 You'll still get 3 results (Top-K always returns K results if the collection has enough), but the scores will be noticeably lower. There's no "minimum relevance" filter yet — that comes in Module 4 (threshold search).
 
-### Exercise 2.4 — Run the tests
-
-```bash
-cd module-02
-dotnet test
-```
-
-You should see **11 tests passed**.
-
 ---
 
 ## ✅ Checkpoint

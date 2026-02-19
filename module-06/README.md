@@ -231,15 +231,6 @@ Using **POST /chat** in Swagger UI, try combining all parameters:
 }
 ```
 
-### Exercise 6.3 — Run the tests
-
-```bash
-cd module-06
-dotnet test
-```
-
-You should see **30 tests passed**.
-
 ---
 
 ## ✅ Checkpoint

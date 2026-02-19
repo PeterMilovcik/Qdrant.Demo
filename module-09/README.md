@@ -232,15 +232,6 @@ You are a pirate. Answer questions using pirate language, but still base your an
 
 Ask a question and see how the tone changes while the facts stay grounded.
 
-### Exercise 9.3 — Run the tests
-
-```bash
-cd module-09
-dotnet test
-```
-
-You should see **48 tests passed** — the frontend doesn't change any backend logic, so all existing tests still pass.
-
 ---
 
 ## ✅ Final Checkpoint

@@ -304,15 +304,6 @@ The model should pull from both biology and physics documents.
 
 The `sources` array shows exactly which documents the LLM used. Check the scores — higher scores mean the document was more relevant to the question.
 
-### Exercise 5.4 — Run the tests
-
-```bash
-cd module-05
-dotnet test
-```
-
-You should see **27 tests passed**.
-
 ---
 
 ## ✅ Checkpoint
