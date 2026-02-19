@@ -1,6 +1,6 @@
 # Module 0 — Setup & Orientation
 
-> **~15 min** · No LLM needed yet · No code to write
+> **~20 min** · No LLM needed yet · No code to write
 
 ## Learning objective
 
@@ -44,7 +44,7 @@ The `Program.cs` in this module is minimal:
 - Reads Qdrant connection config from `appsettings.json` (with env-var overrides)
 - Registers `QdrantClient` (the gRPC client for Qdrant)
 - Starts `QdrantBootstrapper` — a background service that creates the `documents` collection at startup (with retries, since Qdrant may not be ready immediately)
-- Exposes Swagger UI, a root info endpoint (`GET /`), and a health check (`GET /health`)
+- Exposes Swagger UI and an info endpoint (`GET /api/info`); a hidden health check (`GET /health`) is also available but excluded from Swagger
 
 No LLM, no embeddings, no documents yet — just infrastructure.
 
@@ -56,6 +56,9 @@ From this module's folder, start the Qdrant container:
 
 ```bash
 cd module-00
+```
+
+```bash
 docker compose up -d
 ```
 
@@ -73,7 +76,7 @@ You'll see an empty dashboard — no collections yet.
 
 ## Step 2 — Run the API
 
-In a separate terminal, run the API on a known port:
+Set the API port (keep this variable set for the rest of the workshop — every module uses port 8080):
 
 ```powershell
 # PowerShell
@@ -85,9 +88,10 @@ $env:ASPNETCORE_URLS = "http://localhost:8080"
 export ASPNETCORE_URLS="http://localhost:8080"
 ```
 
+Then run the API:
+
 ```bash
-cd module-00/src/Qdrant.Demo.Api
-dotnet run
+dotnet run --project src/Qdrant.Demo.Api
 ```
 
 You should see output like:
@@ -105,10 +109,10 @@ info: Microsoft.Hosting.Lifetime[14]
 Open `http://localhost:8080/swagger`.
 
 You'll see two endpoints:
-- `GET /` — returns service info (Qdrant config, collection name, embedding dimensions)
+- `GET /api/info` — returns service info (Qdrant config, collection name, embedding dimensions)
 - `GET /health` — hidden from Swagger but reachable directly
 
-Try calling `GET /` from Swagger — you should see the configuration JSON.
+Try calling `GET /api/info` from Swagger — you should see the configuration JSON.
 
 ### Qdrant Dashboard
 
@@ -125,6 +129,7 @@ Open these files and read through them:
 | File | What to notice |
 |------|---------------|
 | `Program.cs` | How config values are read with env-var fallbacks |
+| `Endpoints/InfoEndpoints.cs` | The `MapInfoEndpoints` extension method — `GET /api/info` and `GET /health` |
 | `Services/QdrantBootstrapper.cs` | The retry loop (30 attempts, 1s apart) — tolerates Qdrant starting slowly |
 | `appsettings.json` | Default Qdrant connection values |
 | `docker-compose.yml` | Only Qdrant — the API runs locally via `dotnet run` |
@@ -143,10 +148,10 @@ Open the Qdrant Dashboard and confirm:
 
 ### Exercise 0.2 — Call the info endpoint
 
-Using curl or Swagger, call `GET /` and verify the response matches your configuration:
+Using curl or Swagger, call `GET /api/info` and verify the response matches your configuration:
 
 ```bash
-curl http://localhost:8080/
+curl http://localhost:8080/api/info
 ```
 
 Expected response:
@@ -224,4 +229,4 @@ docker compose down
 
 This ensures ports 8080, 6333, and 6334 are free for the next module.
 
-**Next →** [Module 1 — Your First Document](../module-01/README.md)
+**Next →** [Module 1 — Index](../module-01/README.md)

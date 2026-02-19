@@ -1,9 +1,3 @@
-using Microsoft.Extensions.AI;
-using OpenAI;
-using Qdrant.Client;
-using Qdrant.Demo.Api.Endpoints;
-using Qdrant.Demo.Api.Services;
-
 var builder = WebApplication.CreateBuilder(args);
 
 // ---- configuration (appsettings.json → env vars override) ----
@@ -29,6 +23,7 @@ var openAi = new OpenAIClient(openAiApiKey);
 builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
     openAi.GetEmbeddingClient(embeddingModel).AsIEmbeddingGenerator());
 builder.Services.AddSingleton<IEmbeddingService, EmbeddingService>();
+builder.Services.AddSingleton<IQdrantFilterFactory, QdrantFilterFactory>();
 
 builder.Services.AddHostedService(sp =>
     new QdrantBootstrapper(
@@ -49,7 +44,7 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 // ---- endpoints ----
-app.MapGet("/", () => Results.Ok(new
+app.MapInfoEndpoints(new
 {
     service = "Qdrant.Demo.Api",
     qdrant = new
@@ -61,10 +56,7 @@ app.MapGet("/", () => Results.Ok(new
         embeddingDim
     },
     embeddingModel
-}));
-
-app.MapGet("/health", () => Results.Ok("healthy"))
-    .ExcludeFromDescription();
+});
 
 app.MapDocumentEndpoints();
 app.MapSearchEndpoints(collectionName);

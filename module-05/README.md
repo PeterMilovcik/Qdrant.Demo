@@ -1,54 +1,37 @@
-# Module 5 — RAG Chat
+﻿# Module 5 — User Interface
 
-> **~20 min** · Builds on [Module 4](../module-04/README.md)
+> **~20 min** · Builds on [Module 4](../module-04/README.md) · **Bonus module**
 
 ## Learning objective
 
 By the end of this module you will have:
 
-- Understood **Retrieval-Augmented Generation (RAG)** — the core pattern behind AI-powered Q&A
-- Built a `POST /chat` endpoint that retrieves documents, assembles context, and generates an answer
-- Seen how the LLM is grounded in your indexed documents and refuses to hallucinate
+- Served a **static frontend** from ASP.NET Core using `UseStaticFiles()`
+- Interacted with every workshop endpoint through a **visual UI** instead of Swagger
+- Experienced RAG from the **end-user perspective** — ask a question, see the answer and its sources
+- Compared search strategies (Top-K vs Threshold vs Metadata) **side by side**
 
 ---
 
 ## Concepts introduced
 
-### What is RAG?
+### Static file middleware
 
-**Retrieval-Augmented Generation** is a two-step pattern:
+ASP.NET Core can serve HTML, CSS, JS, and images straight from a `wwwroot/` folder — no separate web server needed. Two middleware calls make it work:
 
-1. **Retrieve** — embed the user's question, search the vector database for similar documents
-2. **Generate** — feed those documents as context to a Large Language Model (LLM), which writes a grounded answer
-
-```mermaid
-flowchart LR
-    Q[Question] --> E[Embed]
-    E --> S[Search Qdrant]
-    S --> D[Top-K documents]
-    D --> LLM
-    SP[System prompt] --> LLM
-    Q --> LLM
-    LLM --> A[Answer]
+```csharp
+app.UseDefaultFiles();   // maps "/" → "/index.html"
+app.UseStaticFiles();    // serves everything in wwwroot/
 ```
 
-### Why RAG instead of just asking the LLM?
+`UseDefaultFiles()` must come **before** `UseStaticFiles()`. Together they mean: visiting `http://localhost:8080/` serves `wwwroot/index.html`, while API routes like `/api/info`, `/chat`, and `/search/topk` continue to work as before.
 
-LLMs have a training cutoff and don't know about **your** data. RAG bridges this gap:
+### Single-file frontend
 
-| Without RAG | With RAG |
-|-------------|----------|
-| LLM answers from training data only | LLM answers from **your documents** |
-| May hallucinate facts | Grounded — cites what's actually indexed |
-| Generic answers | Specific to your domain |
+The entire UI is a single `index.html` (no build step, no npm, no bundler). It uses:
 
-### The system prompt
-
-The system prompt tells the LLM the rules:
-
-> *"Answer the user's question based **only** on the provided context documents. If the context does not contain enough information to answer, say so clearly — do not make up facts."*
-
-This is a hard-coded default in Module 5. In Module 6 you'll make it customizable.
+- [**Pico.css**](https://picocss.com) — a classless CSS framework loaded from CDN (~10 KB). Semantic HTML elements (`<article>`, `<nav>`, `<details>`) get clean styling automatically, including automatic dark/light mode based on your OS preference.
+- **Vanilla JavaScript** — plain `fetch()` calls to the API endpoints. No framework, no transpiler.
 
 ---
 
@@ -56,268 +39,210 @@ This is a hard-coded default in Module 5. In Module 6 you'll make it customizabl
 
 | New file | Purpose |
 |----------|---------|
-| `Endpoints/ChatEndpoints.cs` | `POST /chat` — embed question → search → build context → call LLM → return answer + sources |
+| `wwwroot/index.html` | Single-file frontend: Chat, Search, Documents, and Status tabs |
 
 | Changed file | What changed |
 |-------------|-------------|
-| `Models/Requests.cs` | Added `ChatRequest(Question, K)`, `ChatResponse`, `ChatSource` records |
-| `Program.cs` | Added `IChatClient` registration, `chatModel` config, `MapChatEndpoints()` |
-| `docker-compose.yml` | Unchanged — Qdrant only |
+| `Program.cs` | Added `UseDefaultFiles()` + `UseStaticFiles()` middleware so the root URL serves the frontend |
 
 ### Code walkthrough
 
-#### Chat request & response models — [`Requests.cs`](src/Qdrant.Demo.Api/Models/Requests.cs)
+#### Static file setup — [`Program.cs`](src/Qdrant.Demo.Api/Program.cs)
 
-Three new records define the chat contract:
-
-```csharp
-public record ChatRequest(
-    string Question,
-    int K = 5
-);
-
-public record ChatResponse(
-    string Answer,
-    IReadOnlyList<ChatSource> Sources
-);
-
-public record ChatSource(
-    string Id,
-    float Score,
-    string TextSnippet
-);
-```
-
-`K` controls how many documents are retrieved as context. The response pairs the generated answer with the source documents and their similarity scores, so the caller can verify grounding.
-
-#### The RAG pipeline — [`ChatEndpoints.cs`](src/Qdrant.Demo.Api/Endpoints/ChatEndpoints.cs)
-
-The system prompt sets the ground rules — the LLM must answer only from provided context:
+Three lines make the frontend work:
 
 ```csharp
-private const string DefaultSystemPrompt =
-    """
-    You are a helpful assistant. Answer the user's question based **only** on
-    the provided context documents. If the context does not contain enough
-    information to answer, say so clearly — do not make up facts.
-    """;
+// ---- static files (serves wwwroot/index.html as the frontend) ----
+app.UseDefaultFiles();   // maps "/" → "/index.html"
+app.UseStaticFiles();
 ```
 
-The endpoint follows the classic RAG pattern — embed, retrieve, assemble context, generate:
+#### Frontend structure — [`wwwroot/index.html`](src/Qdrant.Demo.Api/wwwroot/index.html)
 
-```csharp
-// 1. Embed the user's question
-var vector = await embeddings.EmbedAsync(req.Question, ct);
+The single HTML file is organized into four tabs:
 
-// 2. Retrieve the top-K most similar documents
-var hits = await qdrant.SearchAsync(
-    collectionName: collectionName,
-    vector: vector,
-    limit: (ulong)req.K,
-    payloadSelector: true,
-    cancellationToken: ct);
-```
+| Tab | Endpoints used | What it shows |
+|-----|---------------|---------------|
+| **Chat** | `POST /chat` | Conversation-style RAG interface with answer + expandable sources |
+| **Search** | `POST /search/topk`, `/search/threshold`, `/search/metadata` | Three search modes with score bars, chunk badges, and payload details |
+| **Documents** | `POST /documents`, `POST /documents/batch` | Single and batch document indexing with chunk count feedback |
+| **Status** | `GET /api/info`, `GET /health` | Config grid and auto-refreshing health indicator |
 
-The retrieved documents are numbered and combined into a single context string, then sent to the LLM along with the user's question:
-
-```csharp
-// 4. Call the chat-completion model
-List<ChatMessage> messages =
-[
-    new ChatMessage(ChatRole.System, DefaultSystemPrompt),
-    new ChatMessage(ChatRole.User,
-        $"""
-        Context:
-        {context}
-
-        Question: {req.Question}
-        """)
-];
-
-var response = await chatClient.GetResponseAsync(messages, cancellationToken: ct);
-```
-
-The `IChatClient` abstraction (from Microsoft.Extensions.AI) keeps the endpoint decoupled from any specific LLM provider.
+A reusable **tag chip widget** (key + value input → dismissible pills) appears in every form that accepts tags, keeping the UI consistent across all endpoints.
 
 ---
 
 ## Step 1 — Start Qdrant and run the API
 
-This module introduces the chat LLM (`gpt-4o-mini`). Make sure your `OPENAI_API_KEY` environment variable is set (see [Module 1](../module-01/README.md#step-1--set-your-openai-api-key)).
-
 ```bash
 cd module-05
-docker compose up -d    # starts Qdrant (http://localhost:6333)
+```
+
+```bash
+docker compose up -d
 ```
 
 Then run the API locally:
 
 ```bash
-cd src/Qdrant.Demo.Api
+dotnet run --project src/Qdrant.Demo.Api
 ```
 
-```powershell
-# PowerShell
-$env:ASPNETCORE_URLS = "http://localhost:8080"
+## Step 2 — Open the frontend
+
+Visit **http://localhost:8080/** in your browser.
+
+You should see the **Chat** tab with an empty conversation area. The navigation bar at the top has four tabs: **Chat**, **Search**, **Documents**, and **Status**.
+
+> **Note:** Swagger UI is still available at **http://localhost:8080/swagger** if you need it.
+
+## Step 3 — Check the Status tab
+
+Click the **Status** tab. You should see:
+
+- A green **Healthy** indicator (auto-refreshes every 15 seconds)
+- A configuration grid showing your Qdrant connection, embedding model, chat model, and chunking settings
+
+If the dot is red, make sure Qdrant is running (`docker compose up -d`) and the API started without errors.
+
+## Step 4 — Index some documents
+
+Click the **Documents** tab.
+
+### Single document
+
+1. In the **Text** field, paste:
+
+```
+Photosynthesis converts sunlight into chemical energy in plants.
 ```
 
-```bash
-# Linux/macOS
-export ASPNETCORE_URLS="http://localhost:8080"
-```
+2. Under **Tags**, type `category` as key, `science` as value, and click **Add**
+3. Click **Index Document**
 
-```bash
-dotnet run
-```
+You should see a green result card showing the Point ID and **1 chunk**.
 
-## Step 2 — Index some knowledge
+### Long document (chunking)
 
-1. Open **Swagger UI** in your browser: **http://localhost:8080/swagger**
-2. Find the **POST /documents** endpoint, click **Try it out**
-3. Paste each JSON body below and click **Execute**:
+1. Clear the Text field and paste a long text (e.g., the coffee history article from Module 4 — over 3000 characters)
+2. Add a tag: `category` = `history`
+3. Click **Index Document**
 
-**Document 1:**
+This time you should see **4 chunks** with an expandable list of chunk IDs.
+
+### Batch upload
+
+Scroll down to **Batch upload**, paste:
 
 ```json
-{
-  "id": "bio-001",
-  "text": "Photosynthesis is the process by which green plants convert sunlight into chemical energy, producing glucose and oxygen as byproducts.",
-  "tags": { "category": "biology" }
-}
+[
+  { "id": "planet-1", "text": "Mercury is the closest planet to the Sun and has no atmosphere.", "tags": { "category": "science" } },
+  { "id": "planet-2", "text": "Venus is the hottest planet due to its thick carbon dioxide atmosphere.", "tags": { "category": "science" } },
+  { "id": "planet-3", "text": "Mars has the largest volcano in the solar system, Olympus Mons.", "tags": { "category": "science" } }
+]
 ```
 
-**Document 2:**
+Click **Index Batch**. You should see: **Total: 3, Succeeded: 3**.
 
-```json
-{
-  "id": "bio-002",
-  "text": "DNA replication is the biological process of producing two identical copies of DNA from one original DNA molecule. It occurs during the S phase of the cell cycle.",
-  "tags": { "category": "biology" }
-}
+## Step 5 — Search your documents
+
+Click the **Search** tab.
+
+### Top-K search
+
+1. The **Top-K** mode is selected by default
+2. Type: `How do plants produce energy?`
+3. Leave K at 5 and click **Search**
+4. Results appear with score bars — the photosynthesis document should rank highest
+
+### Threshold search
+
+1. Click the **Threshold** button in the mode selector
+2. Type the same query: `How do plants produce energy?`
+3. Drag the **Score threshold** slider to `0.50`
+4. Click **Search**
+5. Only documents above the 0.50 threshold appear — try dragging the slider to see results appear and disappear
+
+### Metadata browse
+
+1. Click the **Metadata** button
+2. Add a tag: `category` = `science`
+3. Click **Browse**
+4. All science-tagged documents appear (no similarity scores — this is a tag-only query)
+
+## Step 6 — Chat with your documents
+
+Click the **Chat** tab.
+
+1. Type: `How do plants produce energy?` and click **Send**
+2. The assistant responds with an answer grounded in your indexed documents
+3. Click the **▸ sources used** expander below the answer to see which chunks were retrieved and their scores
+
+Try another question:
+
+```
+What is the hottest planet and why?
 ```
 
-**Document 3:**
+The RAG pipeline retrieves the Venus document and generates an answer from it.
 
-```json
-{
-  "id": "phys-001",
-  "text": "Quantum entanglement is a phenomenon where two particles become linked, so the quantum state of one instantly influences the other, regardless of distance.",
-  "tags": { "category": "physics" }
-}
-```
+### Advanced settings
 
-## Step 3 — Ask a question
+Click **⚙ Advanced settings** to reveal:
 
-In **Swagger UI**, find the **POST /chat** endpoint, click **Try it out**, paste the following body and click **Execute**:
+- **K** — adjust how many chunks are retrieved
+- **Score threshold** — filter out low-relevance chunks
+- **Tags** — restrict retrieval to specific categories
+- **System prompt** — override the default prompt to change the assistant's behavior
 
-```json
-{
-  "question": "How do plants produce energy from sunlight?"
-}
-```
-
-The response includes:
-- **answer** — a generated paragraph grounded in the photosynthesis document
-- **sources** — the documents used as context, with their similarity scores
-
-```json
-{
-  "answer": "Plants produce energy from sunlight through the process of photosynthesis. During photosynthesis, green plants convert sunlight into chemical energy, producing glucose and oxygen as byproducts.",
-  "sources": [
-    {
-      "id": "6b6492a2-38cb-3f55-a58f-47956db480ee",
-      "score": 0.63348544,
-      "textSnippet": "Photosynthesis is the process by which green plants convert sunlight into chemical energy, producing glucose and oxygen as byproducts."
-    },
-    {
-      "id": "4524a713-b7c6-5758-b2f7-bee3ae446075",
-      "score": 0.17606789,
-      "textSnippet": "DNA replication is the biological process of producing two identical copies of DNA from one original DNA molecule. It occurs during the S phase of the cell cycle."
-    },
-    {
-      "id": "e96f7130-3805-f45d-8964-729ec73ebf34",
-      "score": 0.09343319,
-      "textSnippet": "Quantum entanglement is a phenomenon where two particles become linked, so the quantum state of one instantly influences the other, regardless of distance."
-    }
-  ]
-}
-```
-
-## Step 4 — Ask something not in the index
-
-Using **POST /chat** in Swagger UI, try:
-
-```json
-{
-  "question": "What is the best pizza recipe?"
-}
-```
-
-The LLM should respond with something like this
-
-```json
-{
-  "answer": "The provided context does not contain any information about pizza recipes. Therefore, I cannot answer your question.",
-  "sources": [
-    {
-      "id": "4524a713-b7c6-5758-b2f7-bee3ae446075",
-      "score": 0.13151209,
-      "textSnippet": "DNA replication is the biological process of producing two identical copies of DNA from one original DNA molecule. It occurs during the S phase of the cell cycle."
-    },
-    {
-      "id": "6b6492a2-38cb-3f55-a58f-47956db480ee",
-      "score": 0.062440127,
-      "textSnippet": "Photosynthesis is the process by which green plants convert sunlight into chemical energy, producing glucose and oxygen as byproducts."
-    },
-    {
-      "id": "e96f7130-3805-f45d-8964-729ec73ebf34",
-      "score": 0.019232646,
-      "textSnippet": "Quantum entanglement is a phenomenon where two particles become linked, so the quantum state of one instantly influences the other, regardless of distance."
-    }
-  ]
-}
-```
-
- — because the system prompt forbids making up facts.
+Try adding a tag `category` = `history` and asking about coffee — only the coffee history chunks will be used as context.
 
 ---
 
 ## Exercises
 
-### Exercise 5.1 — Adjust K
+### Exercise 5.1 — Dark mode
 
-Using **POST /chat** in Swagger UI, try `"k": 1` — the model gets less context and may give a shorter answer. Then try `"k": 10` — with only 3 documents, it still gets all of them.
+If your OS is in light mode, switch to dark mode (or vice versa). Reload the page — the UI adapts automatically thanks to Pico.css's `data-theme="auto"`.
 
-### Exercise 5.2 — Ask a cross-domain question
+### Exercise 5.2 — Custom system prompt
 
-Using **POST /chat** in Swagger UI, try:
+In the Chat tab, open Advanced settings and set the system prompt to:
 
-```json
-{
-  "question": "Compare biological replication with quantum physics"
-}
+```
+You are a pirate. Answer questions using pirate language, but still base your answers on the provided context documents.
 ```
 
-The model should pull from both biology and physics documents.
-
-### Exercise 5.3 — Inspect the sources
-
-The `sources` array shows exactly which documents the LLM used. Check the scores — higher scores mean the document was more relevant to the question.
+Ask a question and see how the tone changes while the facts stay grounded.
 
 ---
 
-## ✅ Checkpoint
+## ✅ Final Checkpoint
 
-At this point you have:
+Congratulations — you've completed the entire workshop! Here's everything you built:
 
-- [x] A working `POST /chat` endpoint — full RAG pipeline
-- [x] Retrieval + generation in a single API call
-- [x] LLM grounded in your indexed documents (no hallucination)
-- [x] Understanding of: RAG pattern, system prompts, context assembly, IChatClient
+| Module | Feature |
+|--------|---------|
+| 0 | Setup — Qdrant connection, Swagger, health check |
+| 1 | Index — embeddings, Qdrant points, batch indexing |
+| 2 | Retrieval — similarity search, metadata, filtering |
+| 3 | Generation — RAG pipeline, custom prompts, filtered chat |
+| 4 | Chunking — text splitting, sentence boundaries, overlap |
+| 5 | User Interface — static frontend for every endpoint |
+
+### What to explore next
+
+- **Token-aware chunking** — Replace the character-based chunker with `Microsoft.ML.Tokenizers` for exact token counts
+- **Streaming chat** — Use `IChatClient.GetStreamingResponseAsync` for real-time token streaming
+- **Named vectors** — Store multiple embedding models in the same collection
+- **Hybrid search** — Combine dense (semantic) and sparse (keyword) vectors
+- **Authentication** — Add API keys or OAuth to protect the endpoints
+
+---
 
 ## 🧹 Clean Up
 
-Before moving to the next module, stop everything started in this module:
+When you're done exploring, stop everything:
 
 1. **Stop the local API** — press `Ctrl+C` in the terminal where `dotnet run` is running
 2. **Stop Docker containers** — from the `module-05` directory:
@@ -326,6 +251,77 @@ Before moving to the next module, stop everything started in this module:
 docker compose down
 ```
 
-This stops Qdrant so the next module starts fresh.
+### Full cleanup (optional)
 
-**Next →** [Module 6 — Advanced Chat](../module-06/README.md)
+If you want to remove **everything** created during the workshop:
+
+1. **Remove all Qdrant data** — add `-v` to also delete the Docker volumes:
+
+```bash
+docker compose down -v
+```
+
+2. **Remove the Qdrant Docker image** (frees ~200 MB):
+
+```bash
+docker rmi qdrant/qdrant:v1.16.3
+```
+
+3. **Clear build artifacts** — from the repo root:
+
+```powershell
+# PowerShell — remove all bin/ and obj/ folders
+Get-ChildItem -Path . -Include bin,obj -Recurse -Directory | Remove-Item -Recurse -Force
+```
+
+```bash
+# Linux/macOS
+find . -type d \( -name bin -o -name obj \) -exec rm -rf {} +
+```
+
+4. **Unset environment variables** — if you set them during the workshop:
+
+```powershell
+# PowerShell
+Remove-Item Env:ASPNETCORE_URLS -ErrorAction SilentlyContinue
+Remove-Item Env:OPENAI_API_KEY -ErrorAction SilentlyContinue
+Remove-Item Env:CHUNKING_MAX_SIZE -ErrorAction SilentlyContinue
+Remove-Item Env:CHUNKING_OVERLAP -ErrorAction SilentlyContinue
+```
+
+```bash
+# Linux/macOS
+unset ASPNETCORE_URLS OPENAI_API_KEY CHUNKING_MAX_SIZE CHUNKING_OVERLAP
+```
+
+5. **Revert NuGet source changes** — only if you modified your NuGet sources in [Module 00](../module-00/README.md#-troubleshooting):
+
+   If you **enabled** a previously disabled `nuget.org` source, disable it again:
+
+   ```bash
+   dotnet nuget disable source nuget.org
+   ```
+
+   If you **added** `nuget.org` as a new source, remove it:
+
+   ```bash
+   dotnet nuget remove source nuget.org
+   ```
+
+   > **Tip:** Run `dotnet nuget list source` to check your current state before making changes.
+
+6. **Delete the repo** — if you no longer need the workshop files:
+
+```powershell
+# PowerShell — from the parent directory
+Remove-Item -Path Qdrant.Demo -Recurse -Force
+```
+
+```bash
+# Linux/macOS
+rm -rf Qdrant.Demo
+```
+
+---
+
+**← Back to** [Root README](../README.md)

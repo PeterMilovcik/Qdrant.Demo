@@ -1,6 +1,3 @@
-using Qdrant.Client;
-using Qdrant.Demo.Api.Services;
-
 var builder = WebApplication.CreateBuilder(args);
 
 // ---- configuration (appsettings.json → env vars override) ----
@@ -34,7 +31,7 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 // ---- endpoints ----
-app.MapGet("/", () => Results.Ok(new
+app.MapInfoEndpoints(new
 {
     service = "Qdrant.Demo.Api",
     qdrant = new
@@ -45,9 +42,6 @@ app.MapGet("/", () => Results.Ok(new
         collection = collectionName,
         embeddingDim
     }
-}));
-
-app.MapGet("/health", () => Results.Ok("healthy"))
-    .ExcludeFromDescription();
+});
 
 app.Run();

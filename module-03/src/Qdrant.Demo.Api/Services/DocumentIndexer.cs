@@ -38,7 +38,7 @@ public sealed class DocumentIndexer(
             Payload =
             {
                 [Text] = request.Text,
-                [IndexedAtMs] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                [IndexedAtMs] = DateTime.UtcNow.ToUnixMs()
             }
         };
 

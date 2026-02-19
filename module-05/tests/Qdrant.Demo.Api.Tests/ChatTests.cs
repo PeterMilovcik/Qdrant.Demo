@@ -17,14 +17,43 @@ public class ChatTests
     }
 
     [Test]
-    public void ChatRequest_QuestionAndK_CanBeSet()
+    public void ChatRequest_DefaultScoreThreshold_IsNull()
     {
+        var req = new ChatRequest(Question: "test");
+        Assert.That(req.ScoreThreshold, Is.Null);
+    }
+
+    [Test]
+    public void ChatRequest_DefaultTags_IsNull()
+    {
+        var req = new ChatRequest(Question: "test");
+        Assert.That(req.Tags, Is.Null);
+    }
+
+    [Test]
+    public void ChatRequest_DefaultSystemPrompt_IsNull()
+    {
+        var req = new ChatRequest(Question: "test");
+        Assert.That(req.SystemPrompt, Is.Null);
+    }
+
+    [Test]
+    public void ChatRequest_AllFieldsCanBeSet()
+    {
+        var tags = new Dictionary<string, string> { ["category"] = "science" };
+
         var req = new ChatRequest(
             Question: "what is photosynthesis?",
-            K: 3);
+            K: 3,
+            ScoreThreshold: 0.5f,
+            Tags: tags,
+            SystemPrompt: "Custom prompt");
 
         Assert.That(req.Question, Is.EqualTo("what is photosynthesis?"));
         Assert.That(req.K, Is.EqualTo(3));
+        Assert.That(req.ScoreThreshold, Is.EqualTo(0.5f));
+        Assert.That(req.Tags, Has.Count.EqualTo(1));
+        Assert.That(req.SystemPrompt, Is.EqualTo("Custom prompt"));
     }
 
     // ─── ChatSource shape ───────────────────────────────────────

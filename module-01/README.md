@@ -1,13 +1,14 @@
-# Module 1 — Your First Document
+# Module 1 — Index
 
-> **~15 min** · Requires an OpenAI API key · Builds on [Module 0](../module-00/README.md)
+> **~25 min** · Requires an OpenAI API key · Builds on [Module 0](../module-00/README.md)
 
 ## Learning objective
 
 By the end of this module you will have:
 
 - Understood what **embeddings** are and why they matter
-- Indexed your first document into Qdrant via `POST /documents`
+- Indexed a document into Qdrant via `POST /documents`
+- Batch-indexed multiple documents via `POST /documents/batch`
 - Seen a real vector in the Qdrant Dashboard
 - Understood **deterministic point-ids** and **idempotent upserts**
 
@@ -17,11 +18,29 @@ By the end of this module you will have:
 
 ### What are embeddings?
 
-An **embedding** is a list of floating-point numbers (a **vector**) that captures the *meaning* of a piece of text. The OpenAI `text-embedding-3-small` model produces a vector of **1536 floats** for any input text.
+Think of an **embedding** as a numerical fingerprint for a piece of text. Instead of storing the raw words, we send the text to an AI model and get back a list of numbers (a **vector**) that represents its *meaning*.
 
-**Key insight:** Texts with similar meaning produce vectors that are close together in vector space. "The cat sat on the mat" and "A kitten was sitting on a rug" will have very similar vectors, even though the words are different.
+| Concept | Analogy |
+|---------|---------|
+| **Embedding** | A GPS coordinate for text — similar texts land near each other on the "map" |
+| **Vector** | The actual list of numbers — in our case **1536 floats** from OpenAI's `text-embedding-3-small` model |
+| **Similarity** | The distance between two coordinates — closer = more similar meaning |
 
-This is what makes semantic search possible — instead of matching keywords, we compare the *meaning* of texts by comparing their vectors.
+#### Why does this matter?
+
+Traditional search matches **keywords** — if the user types "cat" but the document says "kitten", it's a miss. Embedding-based search matches **meaning**:
+
+> *"The cat sat on the mat"* and *"A kitten was sitting on a rug"*
+>
+> These two sentences share **zero keywords**, yet their embedding vectors are very close together because they mean almost the same thing.
+
+This is the foundation of **semantic search** — comparing meaning instead of words — and it's what we'll build on throughout this workshop.
+
+```mermaid
+flowchart LR
+    A["📄 Text"] -->|send to model| B["🤖 OpenAI"]
+    B -->|returns| C["🔢 Vector: 1536 floats"]
+```
 
 ### How a document becomes a Qdrant point
 
@@ -32,6 +51,16 @@ When you call `POST /documents`, the API:
 3. **Builds a Qdrant point** with the UUID, the vector, and a payload containing the text + a timestamp
 4. **Upserts** the point into Qdrant (insert-or-update — if the point-id already exists, it's overwritten)
 
+```mermaid
+flowchart LR
+    A["📝 id + text"] -->|SHA-256 hash| B["🔑 pointId"]
+    A -->|embed| C["🤖 OpenAI"]
+    C -->|vector| D["📦 Qdrant Point"]
+    B -->|uuid| D
+    A -->|text + timestamp| D
+    D -->|upsert| E[("🗄️ Qdrant")]
+```
+
 ### Deterministic point-ids
 
 The API generates point-ids using SHA-256 hashing:
@@ -41,6 +70,10 @@ The API generates point-ids using SHA-256 hashing:
 
 This means **re-indexing the same document is safe** — it just overwrites the existing point. No duplicates, ever. This is called an **idempotent upsert**.
 
+### Batch indexing
+
+When you have multiple documents to index, calling `POST /documents` once per document works but is tedious. The `POST /documents/batch` endpoint accepts a JSON array of documents and indexes them all in one request. Each document is processed independently, so if one fails (e.g., empty text), the others still succeed. The response tells you exactly how many succeeded and what went wrong with any failures.
+
 ---
 
 ## What changed from Module 0
@@ -49,16 +82,16 @@ This means **re-indexing the same document is safe** — it just overwrites the 
 |----------|---------|
 | `Extensions/StringExtensions.cs` | `ToDeterministicGuid()` — hashes a string to a UUID |
 | `Models/PayloadKeys.cs` | Constants for payload field names (`text`, `indexed_at_ms`) |
-| `Models/Requests.cs` | `DocumentUpsertRequest` and `DocumentUpsertResponse` DTOs |
+| `Models/Requests.cs` | `DocumentUpsertRequest`, `DocumentUpsertResponse`, and `BatchUpsertResponse` DTOs |
 | `Services/IEmbeddingService.cs` | Interface for text → vector conversion |
 | `Services/EmbeddingService.cs` | OpenAI implementation of the embedding service (via `IEmbeddingGenerator<string, Embedding<float>>`) |
 | `Services/IDocumentIndexer.cs` | Interface for the embed + upsert pipeline |
 | `Services/DocumentIndexer.cs` | Implementation: hash id → embed → build point → upsert |
-| `Endpoints/DocumentEndpoints.cs` | `POST /documents` endpoint |
+| `Endpoints/DocumentEndpoints.cs` | `POST /documents` and `POST /documents/batch` endpoints |
 
 | Changed file | What changed |
 |-------------|-------------|
-| `Program.cs` | Added OpenAI config, `IEmbeddingGenerator<string, Embedding<float>>`, `IEmbeddingService`, `IDocumentIndexer`, `MapDocumentEndpoints()` |
+| `Program.cs` | Added OpenAI config, `IEmbeddingGenerator<string, Embedding<float>>`, `IEmbeddingService`, `IDocumentIndexer`, `MapDocumentEndpoints()` (includes batch) |
 | `Qdrant.Demo.Api.csproj` | Added `Microsoft.Extensions.AI.OpenAI` and `Microsoft.Extensions.AI` NuGet packages |
 | `appsettings.json` | Added `OpenAI.EmbeddingModel` |
 | `docker-compose.yml` | Unchanged — Qdrant only |
@@ -139,9 +172,9 @@ await qdrant.UpsertAsync(collectionName, [point], wait: true, cancellationToken:
 
 The `wait: true` parameter tells Qdrant to confirm the write is durable before returning — so the point is immediately searchable.
 
-#### The endpoint — [`DocumentEndpoints.cs`](src/Qdrant.Demo.Api/Endpoints/DocumentEndpoints.cs)
+#### The endpoints — [`DocumentEndpoints.cs`](src/Qdrant.Demo.Api/Endpoints/DocumentEndpoints.cs)
 
-A minimal API endpoint that validates the input, delegates to `IDocumentIndexer`, and returns the generated point id:
+The single-document endpoint validates the input, delegates to `IDocumentIndexer`, and returns the generated point id:
 
 ```csharp
 app.MapPost("/documents", async (
@@ -154,6 +187,30 @@ app.MapPost("/documents", async (
 
     var response = await indexer.IndexAsync(req, ct);
     return Results.Ok(response);
+});
+```
+
+The batch endpoint accepts a JSON array and processes each document independently. If one fails, the rest still succeed:
+
+```csharp
+app.MapPost("/documents/batch", async (
+    [FromBody] IReadOnlyList<DocumentUpsertRequest> batch,
+    IDocumentIndexer indexer,
+    CancellationToken ct) =>
+{
+    List<string> errors = [];
+    var succeeded = 0;
+
+    foreach (var req in batch)
+    {
+        // validate, then index — errors are collected, not thrown
+        await indexer.IndexAsync(req, ct);
+        succeeded++;
+    }
+
+    return Results.Ok(new BatchUpsertResponse(
+        Total: batch.Count, Succeeded: succeeded,
+        Failed: errors.Count, Errors: errors));
 });
 ```
 
@@ -177,30 +234,19 @@ export OPENAI_API_KEY="sk-..."
 
 ```bash
 cd module-01
-docker compose up -d    # starts Qdrant (http://localhost:6333)
+```
+
+```bash
+docker compose up -d
 ```
 
 Then run the API locally:
 
 ```bash
-cd src/Qdrant.Demo.Api
+dotnet run --project src/Qdrant.Demo.Api
 ```
 
-```powershell
-# PowerShell
-$env:ASPNETCORE_URLS = "http://localhost:8080"
-```
-
-```bash
-# Linux/macOS
-export ASPNETCORE_URLS="http://localhost:8080"
-```
-
-```bash
-dotnet run
-```
-
-## Step 3 — Index your first document
+## Step 3 — Index a document
 
 1. Open **Swagger UI** in your browser: **http://localhost:8080/swagger**
 2. Find the **POST /documents** endpoint and click it to expand
@@ -234,25 +280,37 @@ You should see **1 point**. Click on it to inspect:
 
 > **Note:** The dashboard doesn't display the raw vector values — it only shows the id and payload. The 1536-dimensional embedding vector is stored internally and used when you perform similarity searches (coming in Module 2).
 
-## Step 5 — Index two more documents
+## Step 5 — Batch index two more documents
 
-Back in **Swagger UI** (`http://localhost:8080/swagger`), use **POST /documents** the same way to index two more documents.
+Now let's use the batch endpoint to index two documents in a single call.
 
-**Document 2** — paste this into the request body and click **Execute**:
+1. In **Swagger UI**, find the **POST /documents/batch** endpoint and click it to expand
+2. Click **Try it out**
+3. Replace the request body with this JSON array:
 
 ```json
-{
-  "id": "article-002",
-  "text": "Quantum entanglement is a phenomenon where two particles become linked, so the quantum state of one instantly influences the other, regardless of distance."
-}
+[
+  {
+    "id": "article-002",
+    "text": "Quantum entanglement is a phenomenon where two particles become linked, so the quantum state of one instantly influences the other, regardless of distance."
+  },
+  {
+    "id": "article-003",
+    "text": "Machine learning is a subset of artificial intelligence where algorithms learn patterns from data rather than being explicitly programmed."
+  }
+]
 ```
 
-**Document 3** — paste this into the request body and click **Execute**:
+4. Click **Execute**
+
+You should see a response like:
 
 ```json
 {
-  "id": "article-003",
-  "text": "Machine learning is a subset of artificial intelligence where algorithms learn patterns from data rather than being explicitly programmed."
+  "total": 2,
+  "succeeded": 2,
+  "failed": 0,
+  "errors": []
 }
 ```
 
@@ -287,6 +345,20 @@ In **Swagger UI**, use **POST /documents** with a body that has **no `id` field*
 
 Click **Execute** and note the `pointId` in the response. It is derived from the text hash. If you execute the exact same request again, you'll get the same `pointId` — still idempotent.
 
+### Exercise 1.3 — Test partial failure in batch
+
+Using **POST /documents/batch**, send a batch where one document has empty text:
+
+```json
+[
+  { "id": "good-doc", "text": "This document has valid text." },
+  { "id": "bad-doc", "text": "" },
+  { "id": "also-good", "text": "This one is also fine." }
+]
+```
+
+The response should show `succeeded: 2`, `failed: 1`, and the `errors` array should contain a message about `bad-doc`. The other two documents were indexed successfully despite the failure.
+
 ---
 
 ## ✅ Checkpoint
@@ -296,7 +368,8 @@ At this point you have:
 - [x] 3+ documents indexed in Qdrant
 - [x] Seen points with payloads in the Qdrant Dashboard
 - [x] Verified idempotent upserts (re-indexing doesn't create duplicates)
-- [x] Understanding of: embeddings, points, payloads, deterministic point-ids
+- [x] Batch-indexed documents and observed partial-failure handling
+- [x] Understanding of: embeddings, points, payloads, deterministic point-ids, batch operations
 
 ## 🧹 Clean Up
 
@@ -311,4 +384,4 @@ docker compose down
 
 This stops Qdrant so the next module starts fresh.
 
-**Next →** [Module 2 — Similarity Search](../module-02/README.md)
+**Next →** [Module 2 — Retrieval](../module-02/README.md)

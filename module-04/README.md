@@ -1,53 +1,56 @@
-# Module 4 — Filtered Search
+﻿# Module 4 — Chunking
 
-> **~20 min** · Builds on [Module 3](../module-03/README.md)
+> **~30 min** · Builds on [Module 3](../module-03/README.md)
 
 ## Learning objective
 
 By the end of this module you will have:
 
-- **Filtered** similarity search using tags (`POST /search/topk` now accepts `tags`)
-- A **threshold** search endpoint that returns all results above a minimum score
-- A **metadata-only** search that filters by tags without using vectors at all
-- Understood the `QdrantFilterFactory` — the bridge between tag dictionaries and Qdrant filter objects
+- Understood **why** long documents need to be split before embedding
+- Implemented a character-based **text chunker** with sentence-boundary awareness
+- Stored multi-chunk documents with parent-child metadata in Qdrant
+- Seen how chunked documents appear in search results
 
 ---
 
 ## Concepts introduced
 
-### Filtered vector search
+### Why chunk?
 
-In Module 2, `/search/topk` returned the K most similar documents from the **entire** collection. Now, you can pass `tags` in the request body to narrow the search:
+Embedding models have a **token limit** (e.g. `text-embedding-3-small` has a context window of 8,191 tokens). If your document is longer than that, the API call fails. Even shorter documents can produce lower-quality embeddings when the text is too long — the model has to compress too much meaning into a single vector.
 
-```json
-{
-  "queryText": "photosynthesis",
-  "k": 3,
-  "tags": { "category": "biology" }
-}
-```
+**Chunking** splits a long document into smaller pieces, each of which gets its own embedding vector. This means:
+- Each chunk is within the model's token limit
+- Each vector represents a focused piece of meaning
+- Search can return the most relevant *section*, not just the whole document
 
-Qdrant applies the tag filter **before** computing similarity. This means:
-- Only documents with `tag_category = "biology"` are considered
-- The K most similar documents **within that subset** are returned
-- This is called **pre-filtering** and is very efficient
+### Character-based approach
 
-### Threshold search
+Our `TextChunker` uses **character counts** instead of token counts. Since typical tokenizers average ~4 characters per English token, 2000 characters ≈ 500 tokens — safely under the 8,191 limit.
 
-`POST /search/threshold` returns **all** documents whose similarity score is ≥ a given threshold, instead of a fixed count. Use this when you want "everything relevant" rather than "the top N."
+### Sentence-boundary awareness
 
-### Metadata-only search (scroll)
+Naive chunking cuts at a fixed character count, which can break mid-sentence:
 
-`POST /search/metadata` doesn't use vectors at all — it scrolls through documents that match the tag filters. This is useful for browsing/exporting a subset of your collection.
+> `"Photosynthesis is the process by which green pla"` ← bad cut
 
-This endpoint uses Qdrant's gRPC `ScrollAsync` method to retrieve matching points without computing vector similarity.
+The `TextChunker` scans backwards from the cut point to find the nearest sentence boundary (`.`, `?`, `!`, or `\n`), producing cleaner chunks.
 
-### QdrantFilterFactory
+### Overlap
 
-The `QdrantFilterFactory` is a small service that converts a `Dictionary<string, string>` of tags into two filter formats:
-- **gRPC filter** — used by `QdrantClient` for vector searches **and** the scroll endpoint
+Adjacent chunks share some text (default: 200 characters) so that context at boundaries isn't lost. If a sentence straddles two chunks, the overlap ensures it appears in at least one of them completely.
 
-Each tag becomes a `MatchKeyword` condition on the `tag_{key}` payload field. Multiple tags are combined with **AND** logic (`Must` clause).
+### Chunking metadata
+
+When a document is split into multiple chunks, each Qdrant point gets extra payload fields:
+
+| Field | Value |
+|-------|-------|
+| `source_doc_id` | The original document's point ID |
+| `chunk_index` | Zero-based position (0, 1, 2, …) |
+| `total_chunks` | How many chunks this document produced |
+
+This lets you group search results by source document or fetch all chunks for a given document.
 
 ---
 
@@ -55,101 +58,78 @@ Each tag becomes a `MatchKeyword` condition on the `tag_{key}` payload field. Mu
 
 | New file | Purpose |
 |----------|---------|
-| `Services/IQdrantFilterFactory.cs` | Interface for filter building |
-| `Services/QdrantFilterFactory.cs` | Implementation — tags → gRPC/REST filter objects |
-| `Extensions/DateTimeExtensions.cs` | `DateTime.ToUnixMs()` — cleaner than `DateTimeOffset.ToUnixTimeMilliseconds()` |
-| `Tests/QdrantFilterFactoryTests.cs` | 7 tests for both gRPC and REST filter creation |
-| `Tests/DateTimeExtensionsTests.cs` | 2 tests for epoch conversion |
+| `Models/ChunkingOptions.cs` | `MaxChunkSize` (default 2000) and `Overlap` (default 200) configuration |
+| `Models/TextChunk.cs` | `TextChunk` record: Text, Index, StartOffset, EndOffset |
+| `Services/ITextChunker.cs` | Interface for text chunking |
+| `Services/TextChunker.cs` | Character-based chunker with sentence-boundary awareness |
+| `Tests/TextChunkerTests.cs` | 18 tests covering short text, multi-chunk, overlap, boundary detection, edge cases |
 
 | Changed file | What changed |
 |-------------|-------------|
-| `Models/Requests.cs` | Added `ThresholdSearchRequest` and `MetadataSearchRequest` records |
-| `Endpoints/SearchEndpoints.cs` | Injects `IQdrantFilterFactory`; passes filter to top-K; adds `/search/threshold` and `/search/metadata` |
-| `Program.cs` | Registers `IQdrantFilterFactory` |
-| `Services/DocumentIndexer.cs` | Switched to `DateTime.UtcNow.ToUnixMs()` extension method |
+| `Models/PayloadKeys.cs` | Added `SourceDocId`, `ChunkIndex`, `TotalChunks` constants |
+| `Models/Requests.cs` | `DocumentUpsertResponse` now includes `TotalChunks` and `ChunkPointIds` |
+| `Services/DocumentIndexer.cs` | Full rewrite: chunks text, creates a point per chunk, stores chunking metadata |
+| `Program.cs` | Registers `ChunkingOptions`, `ITextChunker`; passes chunker to `DocumentIndexer` |
 
 ### Code walkthrough
 
-#### The filter factory — [`QdrantFilterFactory.cs`](src/Qdrant.Demo.Api/Services/QdrantFilterFactory.cs)
+#### The text chunker — [`TextChunker.cs`](src/Qdrant.Demo.Api/Services/TextChunker.cs)
 
-This is the bridge between the simple `Dictionary<string, string>` tags from the request body and the filter objects that Qdrant understands. Each tag becomes a `MatchKeyword` condition on the `tag_{key}` payload field, combined with AND logic:
+If the text fits in a single chunk, it's returned as-is. Otherwise, the chunker splits with overlap and tries to break at sentence boundaries:
 
 ```csharp
-public Filter? CreateGrpcFilter(Dictionary<string, string>? tags)
+public IReadOnlyList<TextChunk> Chunk(string text)
 {
-    if (tags is null || tags.Count == 0) return null;
-
-    var filter = new Filter();
-
-    foreach (var (key, value) in tags)
+    if (text.Length <= options.MaxChunkSize)
     {
-        filter.Must.Add(MatchKeyword($"tag_{key}", value));
+        return [new TextChunk(text, Index: 0, StartOffset: 0, EndOffset: text.Length)];
     }
 
-    return filter;
+    List<TextChunk> chunks = [];
+    var chunkIndex = 0;
+    var start = 0;
+
+    while (start < text.Length)
+    {
+        var remaining = text.Length - start;
+        var length = Math.Min(options.MaxChunkSize, remaining);
+
+        // Not the last chunk? Try to find a sentence boundary to break at.
+        if (start + length < text.Length)
+        {
+            length = FindSentenceBoundary(text, start, length);
+        }
+        // ... store chunk and advance by (length - overlap)
+    }
 }
 ```
 
-Returning `null` when there are no tags means "no filter" — the search considers all documents.
+The `FindSentenceBoundary` method scans backwards from the cut point, preferring paragraph breaks (`\n`), then sentence enders (`.`, `?`, `!`), then any whitespace — and falls back to a hard cut only as a last resort.
 
-#### Filtered top-K search — [`SearchEndpoints.cs`](src/Qdrant.Demo.Api/Endpoints/SearchEndpoints.cs)
+#### Chunked indexing — [`DocumentIndexer.cs`](src/Qdrant.Demo.Api/Services/DocumentIndexer.cs)
 
-The top-K endpoint now injects `IQdrantFilterFactory` and passes the filter to `qdrant.SearchAsync`:
-
-```csharp
-var vector = await embeddings.EmbedAsync(req.QueryText, ct);
-var filter = filters.CreateGrpcFilter(req.Tags);
-
-var hits = await qdrant.SearchAsync(
-    collectionName: collectionName,
-    vector: vector,
-    limit: (ulong)req.K,
-    filter: filter,
-    payloadSelector: true,
-    cancellationToken: ct);
-```
-
-Qdrant applies the filter **before** similarity — only matching documents are scored.
-
-#### Threshold search — [`SearchEndpoints.cs`](src/Qdrant.Demo.Api/Endpoints/SearchEndpoints.cs)
-
-Instead of a fixed K, the threshold endpoint passes a `scoreThreshold` parameter. Qdrant returns all points whose cosine similarity is at or above the threshold:
+The indexer now creates one Qdrant point per chunk. Single-chunk documents keep the original id; multi-chunk documents get a derived id per chunk:
 
 ```csharp
-var hits = await qdrant.SearchAsync(
-    collectionName: collectionName,
-    vector: vector,
-    limit: (ulong)req.Limit,
-    filter: filter,
-    scoreThreshold: req.ScoreThreshold,
-    payloadSelector: true,
-    cancellationToken: ct);
+// For single-chunk documents keep the original id;
+// for multi-chunk, append _chunk_{index} for uniqueness.
+var pointIdStr = chunks.Count == 1
+    ? sourceId
+    : $"{sourceId}_chunk_{i}".ToDeterministicGuid().ToString("D");
 ```
 
-The `Limit` parameter (default 100) acts as a safety cap to prevent unbounded results.
-
-#### Metadata-only scroll — [`SearchEndpoints.cs`](src/Qdrant.Demo.Api/Endpoints/SearchEndpoints.cs)
-
-The metadata endpoint doesn't use vectors at all — it calls Qdrant's gRPC `ScrollAsync` to walk through matching points:
+Each chunk carries parent-child metadata so search results can be grouped by source document:
 
 ```csharp
-var filter = filters.CreateGrpcFilter(req.Tags);
-
-var scroll = await qdrant.ScrollAsync(
-    collectionName: collectionName,
-    filter: filter,
-    limit: (uint)req.Limit,
-    payloadSelector: true,
-    cancellationToken: ct);
-
-var results = scroll.Result.Select(p => new SearchHit(
-    Id: p.Id?.Uuid ?? p.Id?.Num.ToString(),
-    Score: 0f,
-    Payload: p.Payload.ToDictionary()
-));
+if (chunks.Count > 1)
+{
+    point.Payload[SourceDocId] = sourceId;
+    point.Payload[ChunkIndex] = i.ToString();
+    point.Payload[TotalChunks] = chunks.Count.ToString();
+}
 ```
 
-`payloadSelector: true` returns only point ids and payloads — no vectors are transferred, keeping the response small.
+Tags and properties from the original request are copied to **every** chunk, so tag-filtered searches still match regardless of which chunk is most relevant.
 
 ---
 
@@ -157,142 +137,144 @@ var results = scroll.Result.Select(p => new SearchHit(
 
 ```bash
 cd module-04
-docker compose up -d    # starts Qdrant (http://localhost:6333)
+```
+
+```bash
+docker compose up -d
 ```
 
 Then run the API locally:
 
 ```bash
-cd src/Qdrant.Demo.Api
+dotnet run --project src/Qdrant.Demo.Api
 ```
 
-```powershell
-# PowerShell
-$env:ASPNETCORE_URLS = "http://localhost:8080"
-```
+Visit `http://localhost:8080/api/info` — the response now includes a `chunking` section showing the configured `maxChunkSize` and `overlap`.
 
-```bash
-# Linux/macOS
-export ASPNETCORE_URLS="http://localhost:8080"
-```
-
-```bash
-dotnet run
-```
-
-## Step 2 — Index documents with tags
+## Step 2 — Index a short document (single chunk)
 
 1. Open **Swagger UI** in your browser: **http://localhost:8080/swagger**
 2. Find the **POST /documents** endpoint, click **Try it out**
-3. Paste each JSON body below and click **Execute**:
-
-**Document 1:**
+3. Paste the following JSON body and click **Execute**:
 
 ```json
 {
-  "id": "bio-001",
-  "text": "Photosynthesis converts sunlight into chemical energy in green plants.",
-  "tags": { "category": "biology", "level": "introductory" }
+  "id": "short-001",
+  "text": "Photosynthesis converts sunlight into chemical energy."
 }
 ```
 
-**Document 2:**
+In the **Response body** you should see:
 
 ```json
 {
-  "id": "phys-001",
-  "text": "Quantum entanglement links two particles across any distance.",
-  "tags": { "category": "physics", "level": "advanced" }
+  "pointId": "fb0cddd0-4c9c-be57-b539-dd0dd5a3949d",
+  "totalChunks": 1,
+  "chunkPointIds": [
+    "fb0cddd0-4c9c-be57-b539-dd0dd5a3949d"
+  ]
 }
 ```
 
-**Document 3:**
+`totalChunks: 1` — the text was short enough for a single embedding.
+
+## Step 3 — Index a long document (multiple chunks)
+
+Using **POST /documents** in Swagger UI, paste the following JSON body and click **Execute**. The text is over 3,000 characters, so the chunker will split it into multiple chunks automatically:
 
 ```json
 {
-  "id": "bio-002",
-  "text": "DNA replication is the biological process of producing two identical copies of DNA.",
-  "tags": { "category": "biology", "level": "intermediate" }
+  "id": "history-coffee-001",
+  "text": "The history of coffee begins in the ancient highlands of Ethiopia, where legend credits a goat herder named Kaldi with its discovery around the ninth century. Kaldi noticed that his goats became unusually energetic after eating berries from a certain tree. Curious, he tried the berries himself and experienced a similar burst of alertness. He brought the berries to a local monastery, where monks brewed them into a drink that helped them stay awake during long evening prayers. Word of the energizing beverage spread quickly, and by the fifteenth century coffee was being cultivated in the terraced hills of Yemen. Sufi monks in particular valued the drink for its ability to sustain deep concentration during nighttime devotions and marathon sessions of prayer. The port city of Mocha on the Red Sea coast became a major hub for the coffee trade, giving its name to a style of coffee still recognized today. From Yemen the drink soon reached Persia, Egypt, Syria, and the Ottoman Empire.\n\nCoffeehouses, known as qahveh khaneh, began appearing in cities across the Middle East during the sixteenth century. These establishments quickly became vibrant centers of social and intellectual activity, earning the nickname 'Schools of the Wise.' Patrons gathered to drink coffee, listen to music, watch performers, play chess and backgammon, and debate the political and philosophical questions of the day. The stimulating atmosphere of coffeehouses occasionally attracted suspicion from political and religious authorities. In Mecca, Cairo, and Constantinople, rulers attempted outright bans on coffee, arguing that it encouraged free thinking and seditious conversation. None of these prohibitions lasted long, however, because the drink's popularity proved impossible to suppress.\n\nEuropean travelers to the Near East brought back stories of the unusual dark beverage, and by the early seventeenth century coffee had arrived on the continent. It was initially met with deep suspicion. Some Catholic clergy in Italy denounced it as the 'bitter invention of Satan,' urging Pope Clement VIII to ban it outright. According to popular legend, the Pope insisted on tasting the drink before passing judgment, found it delicious, and gave it his papal blessing instead. Coffeehouses then sprang up rapidly across Europe. In England they became known as 'penny universities,' because for the price of a single penny one could purchase a cup of coffee and engage in hours of stimulating conversation with scholars, merchants, and politicians. By the mid-seventeenth century London alone boasted over three hundred coffeehouses, each attracting its own clientele of traders, writers, scientists, and artists. Lloyd's of London, the famous insurance market, began life as Edward Lloyd's coffeehouse, where ship owners and underwriters gathered to do business.\n\nThe Dutch were among the first Europeans to obtain live coffee plants and began cultivating them in their colonial territories in Java and Suriname during the late seventeenth century. France soon followed, establishing sprawling coffee plantations across the Caribbean islands of Martinique and Saint-Domingue. A single coffee plant gifted to King Louis XIV became the ancestor of millions of trees across Central and South America. The Portuguese brought coffee to Brazil in the eighteenth century, and within a hundred years Brazil had become the world's dominant producer, a position it still holds today. Meanwhile, the Boston Tea Party of 1773, in which American colonists protested British taxation by dumping tea into Boston Harbor, helped shift the young nation's preference decisively from tea to coffee. Coffee became a patriotic drink, and its association with American identity has endured ever since. Today coffee is the second most traded commodity on Earth after crude oil, sustaining the livelihoods of over twenty-five million farming families and fueling a global industry worth more than four hundred billion dollars a year, with over two billion cups consumed every single day.",
+  "tags": { "category": "history" }
 }
 ```
 
-## Step 3 — Filtered top-K search
+In the **Response body** you should see `totalChunks: 4` and a `chunkPointIds` array with one entry per chunk:
+
+```json
+{
+  "pointId": "b61e52cb-d639-1056-874c-0b77556478f5",
+  "totalChunks": 4,
+  "chunkPointIds": [
+    "b61e52cb-d639-1056-874c-0b77556478f5",
+    "b9314d56-b613-7554-9408-f110a5af0d0d",
+    "d4540e80-f35a-8c50-83e7-1d80b7282342",
+    "5ab70094-a820-d854-b12f-08bdf57cdf19"
+  ]
+}
+```
+
+## Step 4 — Search and observe chunk results
 
 In **Swagger UI**, find the **POST /search/topk** endpoint, click **Try it out**, paste the following body and click **Execute**:
 
 ```json
 {
-  "queryText": "energy",
-  "k": 5,
-  "tags": { "category": "biology" }
+  "queryText": "How did coffee spread from Africa to Europe?",
+  "k": 5
 }
 ```
 
-The physics document is **excluded** even though "energy" might be semantically relevant to it.
+You may see multiple chunks from the same source document in the results, each with its own score. The payload will include `source_doc_id`, `chunk_index`, and `total_chunks`. Notice how different chunks match with different scores — the chunk that mentions European arrival should rank highest.
 
-## Step 4 — Threshold search
+## Step 5 — Chat with chunked documents
 
-In **Swagger UI**, find the **POST /search/threshold** endpoint, click **Try it out**, paste the following body and click **Execute**:
+The `/chat` endpoint works seamlessly with chunks — it retrieves the most relevant chunks (not whole documents) and feeds them as context to the LLM.
+
+In **Swagger UI**, find the **POST /chat** endpoint, click **Try it out**, paste the following body and click **Execute**:
 
 ```json
 {
-  "queryText": "biological processes",
-  "scoreThreshold": 0.4
+  "question": "How did coffee spread from Africa to Europe and what role did coffeehouses play?",
+  "k": 5
 }
 ```
 
-All documents with similarity ≥ 0.4 are returned.
+The LLM now gets the most relevant **chunks** as context, not entire documents. Because the coffee article was split into 4 chunks, the model pulls from exactly the chunks that cover the European expansion and coffeehouse culture — giving a more focused and accurate answer than if it received one giant text block.
 
-## Step 5 — Metadata-only search
-
-In **Swagger UI**, find the **POST /search/metadata** endpoint, click **Try it out**, paste the following body and click **Execute**:
+Try a question that spans multiple chunks:
 
 ```json
 {
-  "tags": { "category": "biology" }
+  "question": "Compare the role of coffeehouses in the Middle East versus England"
 }
 ```
 
-This browses all biology documents without any vector search involved.
+The RAG pipeline retrieves chunks from different parts of the same document, assembling cross-section context automatically.
 
 ---
 
 ## Exercises
 
-### Exercise 4.1 — Combine tags
+### Exercise 4.1 — Custom chunk size
 
-Using **POST /search/topk** in Swagger UI, filter by two tags at once:
+Set a small chunk size via environment variable and re-run:
 
-```json
-{
-  "queryText": "energy",
-  "k": 5,
-  "tags": { "category": "biology", "level": "introductory" }
-}
+```bash
+CHUNKING_MAX_SIZE=200 CHUNKING_OVERLAP=50 dotnet run
 ```
 
-Only the photosynthesis document should match.
-
-### Exercise 4.2 — Empty filter
-
-Using **POST /search/topk** in Swagger UI, send a request without `tags`:
-
-```json
-{
-  "queryText": "energy",
-  "k": 5
-}
+```powershell
+# PowerShell alternative
+$env:CHUNKING_MAX_SIZE = "200"
+$env:CHUNKING_OVERLAP = "50"
+dotnet run
 ```
 
-It should behave like Module 2 (return all documents ranked by similarity).
+Index the same long document and observe that it produces many more chunks.
 
-### Exercise 4.3 — Tune the threshold
+### Exercise 4.2 — Inspect sentence boundaries
 
-Using **POST /search/threshold** in Swagger UI, try `"scoreThreshold": 0.8` — most results will be filtered out. Then try `0.2` — you'll get almost everything. Find a sweet spot for your data.
+Index this text and check where the chunks split:
 
-### Exercise 4.4 — Inspect the filter factory
+```
+First paragraph is about biology. Photosynthesis is important. Plants need sunlight.
+Second paragraph discusses physics. Quantum mechanics is complex. Particles behave strangely.
+Third paragraph covers chemistry. Chemical reactions produce energy. Molecules combine.
+```
 
-Open `QdrantFilterFactoryTests.cs` and read through the tests. Notice how null/empty tags produce `null` filters (meaning "no filter"), while populated tags produce `Must` conditions.
+The chunker should prefer splitting at paragraph breaks or sentence ends.
 
 ---
 
@@ -300,17 +282,30 @@ Open `QdrantFilterFactoryTests.cs` and read through the tests. Notice how null/e
 
 At this point you have:
 
-- [x] Three search strategies: top-K, threshold, metadata-only
-- [x] Tag filtering on all search endpoints
-- [x] `QdrantFilterFactory` converting tag dictionaries to Qdrant filter objects
-- [x] Understanding of: pre-filtering, threshold search, scroll API, gRPC filters
+- [x] Automatic text chunking with configurable size and overlap
+- [x] Sentence-boundary-aware splitting (no mid-sentence cuts)
+- [x] Multi-chunk documents with parent-child metadata in Qdrant
+- [x] Understanding of: chunking strategy, overlap, sentence boundaries, chunking metadata
 
 ## 🧹 Clean Up
 
 Before moving to the next module, stop everything started in this module:
 
 1. **Stop the local API** — press `Ctrl+C` in the terminal where `dotnet run` is running
-2. **Stop Docker containers** — from the `module-04` directory:
+2. **Reset environment variables** — if you changed chunk settings in Exercise 4.1, clear them so the next module uses defaults:
+
+```powershell
+# PowerShell
+Remove-Item Env:CHUNKING_MAX_SIZE -ErrorAction SilentlyContinue
+Remove-Item Env:CHUNKING_OVERLAP -ErrorAction SilentlyContinue
+```
+
+```bash
+# Linux/macOS
+unset CHUNKING_MAX_SIZE CHUNKING_OVERLAP
+```
+
+3. **Stop Docker containers** — from the `module-04` directory:
 
 ```bash
 docker compose down
@@ -318,4 +313,4 @@ docker compose down
 
 This stops Qdrant so the next module starts fresh.
 
-**Next →** [Module 5 — RAG Chat](../module-05/README.md)
+**Next →** [Module 5 — User Interface](../module-05/README.md)

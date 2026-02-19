@@ -21,12 +21,13 @@ public static class ChatEndpoints
     public static WebApplication MapChatEndpoints(this WebApplication app, string collectionName)
     {
         // ─────────────────────────────────────────────────────
-        // POST /chat — retrieve + generate (basic RAG)
+        // POST /chat — retrieve + generate (full RAG)
         // ─────────────────────────────────────────────────────
         app.MapPost("/chat", async (
             [FromBody] ChatRequest req,
             QdrantClient qdrant,
             IEmbeddingService embeddings,
+            IQdrantFilterFactory filters,
             IChatClient chatClient,
             CancellationToken ct) =>
         {
@@ -38,11 +39,15 @@ public static class ChatEndpoints
                 // 1. Embed the user's question
                 var vector = await embeddings.EmbedAsync(req.Question, ct);
 
-                // 2. Retrieve the top-K most similar documents (no filter yet)
+                // 2. Retrieve the top-K most similar documents
+                var filter = filters.CreateGrpcFilter(req.Tags);
+
                 var hits = await qdrant.SearchAsync(
                     collectionName: collectionName,
                     vector: vector,
                     limit: (ulong)req.K,
+                    filter: filter,
+                    scoreThreshold: req.ScoreThreshold,
                     payloadSelector: true,
                     cancellationToken: ct);
 
@@ -65,9 +70,11 @@ public static class ChatEndpoints
                 var context = string.Join("\n\n", contextParts);
 
                 // 4. Call the chat-completion model
+                var systemPrompt = req.SystemPrompt ?? DefaultSystemPrompt;
+
                 List<ChatMessage> messages =
                 [
-                    new ChatMessage(ChatRole.System, DefaultSystemPrompt),
+                    new ChatMessage(ChatRole.System, systemPrompt),
                     new ChatMessage(ChatRole.User,
                         $"""
                         Context:

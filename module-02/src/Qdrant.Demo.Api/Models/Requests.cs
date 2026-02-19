@@ -33,6 +33,14 @@ public record DocumentUpsertRequest(
 /// <param name="PointId">The Qdrant point id of the stored document.</param>
 public record DocumentUpsertResponse(string PointId);
 
+/// <summary>Response for a batch upsert.</summary>
+public record BatchUpsertResponse(
+    int Total,
+    int Succeeded,
+    int Failed,
+    IReadOnlyList<string> Errors
+);
+
 // ─────────────────────────────────────────────
 // Search — Top-K (fixed result count)
 // ─────────────────────────────────────────────
@@ -40,13 +48,58 @@ public record DocumentUpsertResponse(string PointId);
 /// <summary>
 /// Vector similarity search that returns exactly <paramref name="K"/> results
 /// (or fewer if the collection has less data), ranked by cosine similarity.
+/// Optionally filtered by <paramref name="Tags"/>.
 /// </summary>
 /// <param name="QueryText">Free-text query that will be embedded and compared to stored vectors.</param>
 /// <param name="K">Maximum number of results to return (default 5).</param>
-/// <param name="Tags">Optional tag filter (used in later modules). Ignored for now.</param>
+/// <param name="Tags">
+///   Optional tag filter — only documents whose <b>indexed tags</b> match
+///   <b>all</b> supplied key/value pairs are returned.
+/// </param>
 public record TopKSearchRequest(
     string QueryText,
     int K = 5,
+    Dictionary<string, string>? Tags = null
+);
+
+// ─────────────────────────────────────────────
+// Search — Threshold (all above score)
+// ─────────────────────────────────────────────
+
+/// <summary>
+/// Vector similarity search that returns <b>all</b> documents whose cosine
+/// similarity score is ≥ <paramref name="ScoreThreshold"/>.
+/// Use this when you want every "good enough" match, not a fixed count.
+/// </summary>
+/// <param name="QueryText">Free-text query that will be embedded.</param>
+/// <param name="ScoreThreshold">
+///   Minimum cosine-similarity score (0.0 – 1.0).
+///   A good starting value is <c>0.4</c> — tune empirically for your data.
+/// </param>
+/// <param name="Limit">Safety cap — maximum results to return (default 100).</param>
+/// <param name="Tags">Optional tag filter (same semantics as <see cref="TopKSearchRequest"/>).</param>
+public record ThresholdSearchRequest(
+    string QueryText,
+    float ScoreThreshold = 0.4f,
+    int Limit = 100,
+    Dictionary<string, string>? Tags = null
+);
+
+// ─────────────────────────────────────────────
+// Search — Metadata only (no vector)
+// ─────────────────────────────────────────────
+
+/// <summary>
+/// Scroll through documents matching <b>only</b> tag filters — no vector
+/// similarity is involved.  Useful for browsing / exporting subsets.
+/// </summary>
+/// <param name="Limit">Maximum number of documents to return (default 25).</param>
+/// <param name="Tags">
+///   Tag filter — only documents whose indexed tags match all supplied
+///   key/value pairs are returned.  If omitted, all documents are returned.
+/// </param>
+public record MetadataSearchRequest(
+    int Limit = 25,
     Dictionary<string, string>? Tags = null
 );
 

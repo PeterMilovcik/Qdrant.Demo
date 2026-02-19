@@ -33,6 +33,14 @@ public record DocumentUpsertRequest(
 /// <param name="PointId">The Qdrant point id of the stored document.</param>
 public record DocumentUpsertResponse(string PointId);
 
+/// <summary>Response for a batch upsert.</summary>
+public record BatchUpsertResponse(
+    int Total,
+    int Succeeded,
+    int Failed,
+    IReadOnlyList<string> Errors
+);
+
 // ─────────────────────────────────────────────
 // Search — Top-K (fixed result count)
 // ─────────────────────────────────────────────
@@ -40,14 +48,111 @@ public record DocumentUpsertResponse(string PointId);
 /// <summary>
 /// Vector similarity search that returns exactly <paramref name="K"/> results
 /// (or fewer if the collection has less data), ranked by cosine similarity.
+/// Optionally filtered by <paramref name="Tags"/>.
 /// </summary>
 /// <param name="QueryText">Free-text query that will be embedded and compared to stored vectors.</param>
 /// <param name="K">Maximum number of results to return (default 5).</param>
-/// <param name="Tags">Optional tag filter (used in later modules). Ignored for now.</param>
+/// <param name="Tags">
+///   Optional tag filter — only documents whose <b>indexed tags</b> match
+///   <b>all</b> supplied key/value pairs are returned.
+/// </param>
 public record TopKSearchRequest(
     string QueryText,
     int K = 5,
     Dictionary<string, string>? Tags = null
+);
+
+// ─────────────────────────────────────────────
+// Search — Threshold (all above score)
+// ─────────────────────────────────────────────
+
+/// <summary>
+/// Vector similarity search that returns <b>all</b> documents whose cosine
+/// similarity score is ≥ <paramref name="ScoreThreshold"/>.
+/// Use this when you want every "good enough" match, not a fixed count.
+/// </summary>
+/// <param name="QueryText">Free-text query that will be embedded.</param>
+/// <param name="ScoreThreshold">
+///   Minimum cosine-similarity score (0.0 – 1.0).
+///   A good starting value is <c>0.4</c> — tune empirically for your data.
+/// </param>
+/// <param name="Limit">Safety cap — maximum results to return (default 100).</param>
+/// <param name="Tags">Optional tag filter (same semantics as <see cref="TopKSearchRequest"/>).</param>
+public record ThresholdSearchRequest(
+    string QueryText,
+    float ScoreThreshold = 0.4f,
+    int Limit = 100,
+    Dictionary<string, string>? Tags = null
+);
+
+// ─────────────────────────────────────────────
+// Search — Metadata only (no vector)
+// ─────────────────────────────────────────────
+
+/// <summary>
+/// Scroll through documents matching <b>only</b> tag filters — no vector
+/// similarity is involved.  Useful for browsing / exporting subsets.
+/// </summary>
+/// <param name="Limit">Maximum number of documents to return (default 25).</param>
+/// <param name="Tags">
+///   Tag filter — only documents whose indexed tags match all supplied
+///   key/value pairs are returned.  If omitted, all documents are returned.
+/// </param>
+public record MetadataSearchRequest(
+    int Limit = 25,
+    Dictionary<string, string>? Tags = null
+);
+
+// ─────────────────────────────────────────────
+// Chat — RAG generation (retrieve + generate)
+// ─────────────────────────────────────────────
+
+/// <summary>
+/// Request body for <c>POST /chat</c>.  The API embeds the
+/// <paramref name="Question"/>, retrieves the top-K most similar documents
+/// from Qdrant, and feeds them as context to the OpenAI chat-completion model.
+/// </summary>
+/// <param name="Question">Natural-language question to answer.</param>
+/// <param name="K">
+///   How many documents to retrieve as context (default 5).
+///   More context = better grounding, but higher token cost.
+/// </param>
+/// <param name="ScoreThreshold">
+///   Optional minimum similarity score.  Documents below this threshold are
+///   excluded from the context even if they are in the top-K.
+/// </param>
+/// <param name="Tags">
+///   Optional tag filter — restrict retrieval to documents whose indexed tags
+///   match all supplied key/value pairs.
+/// </param>
+/// <param name="SystemPrompt">
+///   Optional custom system prompt.  When omitted, a sensible default is used
+///   that instructs the model to answer only from the provided context.
+/// </param>
+public record ChatRequest(
+    string Question,
+    int K = 5,
+    float? ScoreThreshold = null,
+    Dictionary<string, string>? Tags = null,
+    string? SystemPrompt = null
+);
+
+/// <summary>Response returned by <c>POST /chat</c>.</summary>
+/// <param name="Answer">The generated answer grounded in the retrieved documents.</param>
+/// <param name="Sources">The documents used as context, with their similarity scores.</param>
+public record ChatResponse(
+    string Answer,
+    IReadOnlyList<ChatSource> Sources
+);
+
+/// <summary>A single source document that contributed to the chat answer.</summary>
+/// <param name="Id">Qdrant point id.</param>
+/// <param name="Score">Cosine similarity score (0.0 – 1.0).</param>
+/// <param name="TextSnippet">The document text that was used as context.</param>
+public record ChatSource(
+    string Id,
+    float Score,
+    string TextSnippet
 );
 
 // ─────────────────────────────────────────────

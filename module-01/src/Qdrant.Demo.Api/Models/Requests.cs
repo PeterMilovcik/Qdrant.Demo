@@ -32,3 +32,11 @@ public record DocumentUpsertRequest(
 /// <summary>Response returned after a successful upsert.</summary>
 /// <param name="PointId">The Qdrant point id of the stored document.</param>
 public record DocumentUpsertResponse(string PointId);
+
+/// <summary>Response for a batch upsert.</summary>
+public record BatchUpsertResponse(
+    int Total,
+    int Succeeded,
+    int Failed,
+    IReadOnlyList<string> Errors
+);

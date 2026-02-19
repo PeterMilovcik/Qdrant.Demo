@@ -2,7 +2,7 @@
 
 Ever wondered how AI chatbots answer questions using *your* data instead of making things up? That's **Retrieval-Augmented Generation (RAG)** and this workshop teaches you how to build one from scratch.
 
-In about **3 hours**, you'll go from an empty .NET API to a fully working RAG system: store documents as vector embeddings in **Qdrant**, search them by meaning (not just keywords), and let **OpenAI** generate answers grounded in real content, with zero hallucination. Each of the 10 modules introduces exactly one concept (indexing, semantic search, metadata filtering, chat, text chunking, batch operations), so you learn by building, one step at a time.
+In about **3 hours**, you'll go from an empty .NET API to a fully working RAG system: store documents as vector embeddings in **Qdrant**, search them by meaning (not just keywords), and let **OpenAI** generate answers grounded in real content, with zero hallucination. Each of the 6 modules introduces exactly one concept (indexing, retrieval, generation, text chunking), so you learn by building, one step at a time.
 
 **Stack:** .NET 10 · Qdrant · OpenAI · Docker
 
@@ -25,16 +25,12 @@ Each module is a **self-contained, fully buildable** .NET project in its own fol
 
 | # | Module | What you'll learn | ~Time |
 |---|--------|-------------------|-------|
-| **0** | [Setup & Orientation](module-00/README.md) | Docker, Qdrant Dashboard, Swagger UI, project skeleton | ~15 min |
-| **1** | [Your First Document](module-01/README.md) | Embeddings, Qdrant points, `POST /documents`, deterministic IDs | ~15 min |
-| **2** | [Similarity Search](module-02/README.md) | Cosine similarity, `POST /search/topk`, score interpretation | ~15 min |
-| **3** | [Metadata](module-03/README.md) | Tags vs Properties, `tag_*` / `prop_*` payload prefixes | ~10 min |
-| **4** | [Filtered Search](module-04/README.md) | Tag filters, threshold search, metadata-only search, payload indexes | ~20 min |
-| **5** | [RAG Chat](module-05/README.md) | The full RAG pipeline, `POST /chat`, system prompt, hallucination guardrail | ~20 min |
-| **6** | [Advanced Chat](module-06/README.md) | Custom system prompts, filtered chat, prompt engineering | ~15 min |
-| **7** | [Chunking Long Documents](module-07/README.md) | Token limits, text chunking, overlap, sentence boundaries | ~25 min |
-| **8** | [Batch Operations](module-08/README.md) | `POST /documents/batch`, error handling, bulk ingestion | ~10 min |
-| **9** | [Chat UI](module-09/README.md) | Static file serving, single-file frontend, visual RAG experience | ~20 min |
+| **0** | [Setup](module-00/README.md) | Docker, Qdrant Dashboard, Swagger UI, project skeleton | ~20 min |
+| **1** | [Index](module-01/README.md) | Embeddings, Qdrant points, `POST /documents`, batch indexing, deterministic IDs | ~25 min |
+| **2** | [Retrieval](module-02/README.md) | Cosine similarity, metadata, tag filters, threshold search, metadata-only search | ~45 min |
+| **3** | [Generation](module-03/README.md) | The full RAG pipeline, `POST /chat`, system prompts, filtered chat, score threshold | ~40 min |
+| **4** | [Chunking](module-04/README.md) | Token limits, text chunking, overlap, sentence boundaries | ~30 min |
+| **5** | [User Interface](module-05/README.md) | Static file serving, single-file frontend, visual RAG experience | ~20 min |
 
 > **Total workshop time:** ~3 hours at a comfortable pace.
 
@@ -59,18 +55,29 @@ The [`completed/`](completed/) folder contains the final state with **all** feat
 
 ## Quick start
 
+**1. Clone and enter the repo**
+
 ```bash
-# 1. Clone and enter the repo
 git clone https://github.com/PeterMilovcik/Qdrant.Demo.git
+```
+
+```bash
 cd Qdrant.Demo
+```
 
-# 2. (Optional) Use a fixed local API port
-# PowerShell:
+**2. (Optional) Use a fixed local API port**
+
+```powershell
 $env:ASPNETCORE_URLS = "http://localhost:8080"
-# Linux/macOS:
-export ASPNETCORE_URLS="http://localhost:8080"
+```
 
-# 3. Start with Module 0
+```bash
+export ASPNETCORE_URLS="http://localhost:8080"
+```
+
+**3. Start with Module 0**
+
+```bash
 cd module-00
 ```
 
@@ -85,16 +92,12 @@ Qdrant.Demo/
   README.md                         ← you are here
   global.json
   materials/                        ← Pre-workshop email template & setup instructions
-  module-00/                        ← Setup & Orientation
-  module-01/                        ← Your First Document
-  module-02/                        ← Similarity Search
-  module-03/                        ← Metadata
-  module-04/                        ← Filtered Search
-  module-05/                        ← RAG Chat
-  module-06/                        ← Advanced Chat
-  module-07/                        ← Chunking Long Documents
-  module-08/                        ← Batch Operations
-  module-09/                        ← Chat UI
+  module-00/                        ← Setup
+  module-01/                        ← Index
+  module-02/                        ← Retrieval
+  module-03/                        ← Generation
+  module-04/                        ← Chunking
+  module-05/                        ← User Interface
   completed/                        ← Full reference implementation
 ```
 
@@ -163,14 +166,14 @@ All endpoints available in the completed solution:
 
 | Endpoint | Method | Description | Introduced in |
 |----------|--------|-------------|---------------|
-| `/` | GET | Service info | Module 0 |
+| `/api/info` | GET | Service info | Module 0 |
 | `/health` | GET | Health check | Module 0 |
 | `/documents` | POST | Index a single document | Module 1 |
 | `/search/topk` | POST | Top-K similarity search | Module 2 |
-| `/search/threshold` | POST | Threshold similarity search | Module 4 |
-| `/search/metadata` | POST | Metadata-only search (no vector) | Module 4 |
-| `/chat` | POST | Full RAG pipeline (retrieve + generate) | Module 5 |
-| `/documents/batch` | POST | Batch document indexing | Module 8 |
+| `/search/threshold` | POST | Threshold similarity search | Module 2 |
+| `/search/metadata` | POST | Metadata-only search (no vector) | Module 2 |
+| `/chat` | POST | Full RAG pipeline (retrieve + generate) | Module 3 |
+| `/documents/batch` | POST | Batch document indexing | Module 1 |
 
 See each module's README for detailed request/response examples.
 
@@ -181,6 +184,7 @@ See each module's README for detailed request/response examples.
 | File | Responsibility |
 |------|---------------|
 | `Program.cs` | Config, DI, endpoint registration, Swagger |
+| `Endpoints/InfoEndpoints.cs` | `GET /api/info` (service info) + `GET /health` (hidden health check) |
 | `Endpoints/ChatEndpoints.cs` | `POST /chat` — retrieve + generate (full RAG) |
 | `Endpoints/DocumentEndpoints.cs` | `POST /documents` + `POST /documents/batch` |
 | `Endpoints/SearchEndpoints.cs` | `POST /search/topk` + `/search/threshold` + `/search/metadata` |

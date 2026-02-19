@@ -1,9 +1,3 @@
-using Microsoft.Extensions.AI;
-using OpenAI;
-using Qdrant.Client;
-using Qdrant.Demo.Api.Endpoints;
-using Qdrant.Demo.Api.Services;
-
 var builder = WebApplication.CreateBuilder(args);
 
 // ---- configuration (appsettings.json → env vars override) ----
@@ -15,7 +9,16 @@ var qdrantGrpcPort = int.Parse(config["QDRANT_GRPC_PORT"] ?? config["Qdrant:Grpc
 var collectionName = config["QDRANT_COLLECTION"] ?? config["Qdrant:Collection"] ?? "documents";
 var embeddingDim   = int.Parse(config["EMBEDDING_DIM"]    ?? config["Qdrant:EmbeddingDim"] ?? "1536");
 var embeddingModel = config["EMBEDDING_MODEL"] ?? config["OpenAI:EmbeddingModel"] ?? "text-embedding-3-small";
+var chatModel      = config["CHAT_MODEL"]      ?? config["OpenAI:ChatModel"]      ?? "gpt-4o-mini";
 var openAiApiKey   = config["OPENAI_API_KEY"]  ?? config["OpenAI:ApiKey"] ?? throw new InvalidOperationException("Set the OPENAI_API_KEY environment variable or OpenAI:ApiKey in appsettings.json.");
+
+// ---- chunking options ----
+var chunkingOptions = new ChunkingOptions();
+config.GetSection("Chunking").Bind(chunkingOptions);
+var maxChunk = config["CHUNKING_MAX_SIZE"];
+var overlapCfg = config["CHUNKING_OVERLAP"];
+if (maxChunk is not null) chunkingOptions.MaxChunkSize = int.Parse(maxChunk);
+if (overlapCfg is not null) chunkingOptions.Overlap = int.Parse(overlapCfg);
 
 // ---- service registration ----
 builder.Services.AddEndpointsApiExplorer();
@@ -28,8 +31,12 @@ builder.Services.AddSingleton(_ => new QdrantClient(qdrantHost, qdrantGrpcPort))
 var openAi = new OpenAIClient(openAiApiKey);
 builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
     openAi.GetEmbeddingClient(embeddingModel).AsIEmbeddingGenerator());
+builder.Services.AddSingleton<IChatClient>(
+    openAi.GetChatClient(chatModel).AsIChatClient());
 builder.Services.AddSingleton<IEmbeddingService, EmbeddingService>();
 builder.Services.AddSingleton<IQdrantFilterFactory, QdrantFilterFactory>();
+builder.Services.AddSingleton(chunkingOptions);
+builder.Services.AddSingleton<ITextChunker, TextChunker>();
 
 builder.Services.AddHostedService(sp =>
     new QdrantBootstrapper(
@@ -41,6 +48,7 @@ builder.Services.AddSingleton<IDocumentIndexer>(sp =>
     new DocumentIndexer(
         sp.GetRequiredService<QdrantClient>(),
         sp.GetRequiredService<IEmbeddingService>(),
+        sp.GetRequiredService<ITextChunker>(),
         collectionName));
 
 var app = builder.Build();
@@ -50,7 +58,7 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 // ---- endpoints ----
-app.MapGet("/", () => Results.Ok(new
+app.MapInfoEndpoints(new
 {
     service = "Qdrant.Demo.Api",
     qdrant = new
@@ -61,13 +69,17 @@ app.MapGet("/", () => Results.Ok(new
         collection = collectionName,
         embeddingDim
     },
-    embeddingModel
-}));
-
-app.MapGet("/health", () => Results.Ok("healthy"))
-    .ExcludeFromDescription();
+    embeddingModel,
+    chatModel,
+    chunking = new
+    {
+        maxChunkSize = chunkingOptions.MaxChunkSize,
+        overlap = chunkingOptions.Overlap
+    }
+});
 
 app.MapDocumentEndpoints();
 app.MapSearchEndpoints(collectionName);
+app.MapChatEndpoints(collectionName);
 
 app.Run();

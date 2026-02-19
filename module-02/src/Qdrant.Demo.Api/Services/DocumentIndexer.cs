@@ -8,7 +8,8 @@ namespace Qdrant.Demo.Api.Services;
 
 /// <summary>
 /// Production implementation of <see cref="IDocumentIndexer"/>.
-/// Embeds the document text via OpenAI and stores it as a Qdrant point.
+/// Embeds the document text via OpenAI, stores tags as <c>tag_{key}</c>
+/// and properties as <c>prop_{key}</c> in the Qdrant payload.
 /// </summary>
 public sealed class DocumentIndexer(
     QdrantClient qdrant,
@@ -37,9 +38,23 @@ public sealed class DocumentIndexer(
             Payload =
             {
                 [Text] = request.Text,
-                [IndexedAtMs] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                [IndexedAtMs] = DateTime.UtcNow.ToUnixMs()
             }
         };
+
+        // Store tags as tag_{key} — these are indexed and filterable.
+        if (request.Tags is not null)
+        {
+            foreach (var (key, value) in request.Tags)
+                point.Payload[$"{TagPrefix}{key}"] = value;
+        }
+
+        // Store properties as prop_{key} — informational, not indexed.
+        if (request.Properties is not null)
+        {
+            foreach (var (key, value) in request.Properties)
+                point.Payload[$"{PropertyPrefix}{key}"] = value;
+        }
 
         // Upsert into Qdrant (idempotent — same point-id overwrites)
         await qdrant.UpsertAsync(collectionName, [point], wait: true, cancellationToken: ct);

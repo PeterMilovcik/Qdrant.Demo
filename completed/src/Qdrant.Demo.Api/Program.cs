@@ -69,7 +69,7 @@ app.UseDefaultFiles();   // maps "/" → "/index.html"
 app.UseStaticFiles();
 
 // ---- endpoints ----
-app.MapGet("/api/info", () => Results.Ok(new
+app.MapInfoEndpoints(new
 {
     service = "Qdrant.Demo.Api",
     qdrant = new
@@ -87,10 +87,7 @@ app.MapGet("/api/info", () => Results.Ok(new
         maxChunkSize = chunkingOptions.MaxChunkSize,
         overlap = chunkingOptions.Overlap
     }
-}));
-
-app.MapGet("/health", () => Results.Ok("healthy"))
-    .ExcludeFromDescription();
+});
 
 app.MapDocumentEndpoints();
 app.MapSearchEndpoints(collectionName);

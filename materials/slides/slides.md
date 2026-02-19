@@ -28,24 +28,20 @@ Build a complete **Retrieval-Augmented Generation** solution from scratch
 
 # Agenda
 
-<style> table { font-size: 0.6em; } </style>
+<style> table { font-size: 1em; } </style>
 
 | # | Module | Topic | ⏱ |
 |---|--------|-------|---|
-| 0 | Setup & Orientation | Docker, Qdrant Dashboard, Swagger UI | 15 min |
-| 1 | Your First Document | Embeddings, deterministic IDs, upserts | 15 min |
-| 2 | Similarity Search | Cosine similarity, Top-K search | 15 min |
-| 3 | Metadata | Tags vs Properties, payload prefixes | 10 min |
-| 4 | Filtered Search | Tag filters, threshold, metadata-only | 20 min |
-| 5 | RAG Chat | Full RAG pipeline, system prompt | 20 min |
-| 6 | Advanced Chat | Custom prompts, filtered retrieval | 15 min |
-| 7 | Chunking | Text splitting, overlap, sentence boundaries | 25 min |
-| 8 | Batch Operations | Bulk indexing, partial-failure handling | 10 min |
-| 9 | Chat UI | Static frontend, visual RAG experience | 20 min |
+| 0 | Setup | Docker, Qdrant Dashboard, Swagger UI | 20 min |
+| 1 | Index | Embeddings, deterministic IDs, batch indexing | 25 min |
+| 2 | Retrieval | Cosine similarity, metadata, tag filters, threshold | 45 min |
+| 3 | Generation | RAG pipeline, system prompts, filtered chat, score threshold | 40 min |
+| 4 | Chunking | Text splitting, overlap, sentence boundaries | 30 min |
+| 5 | User Interface | Static frontend, visual RAG experience | 20 min |
 
 **Total ≈ 3 hours** at a comfortable pace
 
-<!-- Each module is self-contained and fully buildable. You'll start from zero and end with a production-style RAG API + UI. -->
+<!-- Each module is self-contained and fully buildable. You'll start from zero and end with a RAG API + UI. -->
 
 ---
 
@@ -61,7 +57,10 @@ Build a complete **Retrieval-Augmented Generation** solution from scratch
 
 ### 3. **Generate** — Feed retrieved documents into an LLM for a grounded answer
 
-```mermaid {scale: 0.6}
+<br>
+<br>
+
+```mermaid {scale: 0.7}
 flowchart LR
     T["Documents + metadata"] -->|embed| EMB["OpenAI Embeddings"]
     EMB -->|vectors| QD[("Qdrant")]
@@ -80,6 +79,8 @@ flowchart LR
 
 <br>
 
+<style> table { font-size: 1.1em; } </style>
+
 | Without RAG | With RAG |
 |-------------|----------|
 | LLM answers from training data only | LLM answers from **your documents** |
@@ -89,13 +90,15 @@ flowchart LR
 
 <br>
 
-> **Key insight:** Instead of hoping the AI "knows" the answer, you **feed it the right documents first** — so every response is grounded in facts, not guesswork.
+> **Key insight:** Don't hope the AI "knows" — **feed it the right documents first**.
 
 <!-- The fundamental problem with LLMs is they make stuff up. RAG solves this by giving the LLM factual context before asking it to answer. -->
 
 ---
 
 # Prerequisites
+
+<style> table { font-size: 0.8em; } </style>
 
 | Tool | Version | Why |
 |------|---------|-----|
@@ -109,8 +112,11 @@ flowchart LR
 ### Quick check
 
 ```bash
-docker --version        # 27.x or later
-dotnet --version        # 10.0.101 or later
+docker --version
+```
+
+```bash
+dotnet --version
 ```
 
 <br>
@@ -123,7 +129,7 @@ dotnet --version        # 10.0.101 or later
 
 # Tech Stack
 
-<style> table { font-size: 0.8em; } </style>
+<style> table { font-size: 1em; } </style>
 
 | Component | Role |
 |-----------|------|
@@ -142,9 +148,9 @@ layout: section
 ---
 
 # Module 0
-## Setup & Orientation
+## Setup
 
-~15 min · No LLM needed · No code to write
+~20 min · No LLM needed · No code to write
 
 <!-- Let's get everything running. This module is pure infrastructure — Docker, Qdrant, and the API skeleton. -->
 
@@ -152,7 +158,7 @@ layout: section
 
 # Module 0 — Qdrant Concepts
 
-<style> table { font-size: 0.85em; } p, blockquote { font-size: 0.9em; } </style>
+<style> table { font-size: 1em; } p, blockquote { font-size: 0.9em; } </style>
 
 **Qdrant** is an open-source vector database. It stores **points**:
 
@@ -162,9 +168,9 @@ layout: section
 | **vector** | Array of floats (1536 dimensions for our model) |
 | **payload** | Key/value metadata (text, timestamps, tags) |
 
-Points live inside **collections** — like a database table. All vectors in a collection share the same dimensionality.
+<br>
 
-> In this module, we create the empty `documents` collection. Points come in Module 1.
+> Points live inside **collections** — like a database table. All vectors in a collection share the same dimensionality.
 
 <!-- Think of a collection as a table. Each point is a row with an ID, a vector, and optional metadata. -->
 
@@ -248,8 +254,7 @@ builder.Services.AddHostedService(sp =>
         embeddingDim));
 
 // Endpoints
-app.MapGet("/", () => Results.Ok(new { service = "Qdrant.Demo.Api", ... }));
-app.MapGet("/health", () => Results.Ok("healthy"));
+app.MapInfoEndpoints(new { service = "Qdrant.Demo.Api", ... });
 ```
 
 - Config reads from `appsettings.json` with **env-var overrides**
@@ -265,15 +270,20 @@ app.MapGet("/health", () => Results.Ok("healthy"));
 
 ```bash
 cd module-00
+```
+
+```bash
 docker compose up -d
-curl http://localhost:6333/healthz    # → ok
+```
+
+```bash
+curl http://localhost:6333/healthz
 ```
 
 ### 2. Run the API
 
 ```bash
-cd src/Qdrant.Demo.Api
-dotnet run
+dotnet run --project src/Qdrant.Demo.Api
 ```
 
 ### 3. Explore
@@ -289,9 +299,9 @@ layout: section
 ---
 
 # Module 1
-## Your First Document
+## Index
 
-~15 min · Requires OpenAI API key
+~25 min · Requires OpenAI API key
 
 <!-- Now we add embeddings. This is where the magic starts — turning text into vectors. -->
 
@@ -469,6 +479,43 @@ Response: `{ "pointId": "a1b2c3d4-..." }`
 
 ---
 
+# Module 1 — Batch Endpoint
+
+<div style="transform: scale(0.95); transform-origin: top left;">
+
+```csharp
+app.MapPost("/documents/batch", async (
+    [FromBody] IReadOnlyList<DocumentUpsertRequest> batch,
+    IDocumentIndexer indexer, CancellationToken ct) =>
+{
+    List<string> errors = [];
+    var succeeded = 0;
+    foreach (var req in batch)
+    {
+        if (string.IsNullOrWhiteSpace(req.Text))
+        {
+            errors.Add($"[{req.Id ?? "(empty)"}]: Text is required.");
+            continue;
+        }
+        try { await indexer.IndexAsync(req, ct); succeeded++; }
+        catch (Exception ex)
+        {
+            errors.Add($"[{req.Id ?? req.Text[..Math.Min(req.Text.Length, 40)]}]: {ex.Message}");
+        }
+    }
+    return Results.Ok(new BatchUpsertResponse(
+        batch.Count, succeeded, errors.Count, errors));
+});
+```
+
+</div>
+
+Partial failure: one bad document doesn't block the rest. Errors are collected with labels for easy debugging.
+
+<!-- Same indexer, looped. Bad items are skipped and reported. Good items are indexed. -->
+
+---
+
 # Module 1 — Request & Response Models
 
 ```csharp
@@ -489,8 +536,10 @@ public record DocumentUpsertResponse(
 <br>
 
 - `Id` is optional — if omitted, the text itself is hashed
-- `Tags` and `Properties` are declared now but used starting in Module 3
-- `TotalChunks` and `ChunkPointIds` are used starting in Module 7
+- `Tags` and `Properties` are declared now but used starting in Module 2
+- `TotalChunks` and `ChunkPointIds` are used starting in Module 4
+
+<br>
 
 > Forward-compatible design — the DTOs grow with the workshop.
 
@@ -539,39 +588,40 @@ $env:OPENAI_API_KEY = "sk-..."
 ### 2. Start & run
 
 ```bash
-cd module-01 && docker compose up -d
-cd src/Qdrant.Demo.Api && dotnet run
+cd module-01
+docker compose up -d
+dotnet run --project src/Qdrant.Demo.Api
 ```
 
-### 3. Index documents via Swagger (`POST /documents`)
-one by one:
+### 3. Index a single document via Swagger (`POST /documents`)
 
 ```json
 { "id": "article-001", "text": "Photosynthesis converts sunlight into energy." }
 ```
 
-```json
-{ "id": "article-002", "text": "Quantum entanglement links particles instantly." }
-```
+### 4. Batch index via Swagger (`POST /documents/batch`)
 
 ```json
-{ "id": "article-003", "text": "Machine learning finds patterns in data." }
+[
+  {"id": "article-002", "text": "Quantum entanglement links particles instantly."},
+  {"id": "article-003", "text": "Machine learning finds patterns in data."}
+]
 ```
 
-### 4. Check the Qdrant Dashboard — **3 points** in the collection
+### 5. Check the Qdrant Dashboard — **3 points** in the collection
 
-<!-- Index these three documents. Check the Dashboard — you should see 3 points with payloads. -->
+<!-- Index one document singly, then two more in a batch. Dashboard should show 3 points. -->
 
 ---
 layout: section
 ---
 
 # Module 2
-## Similarity Search
+## Retrieval
 
-~15 min
+~45 min
 
-<!-- Now we search! We've stored vectors — let's find similar ones. -->
+<!-- Now we search! Similarity search, metadata, and filtering — all in one module. -->
 
 ---
 
@@ -683,7 +733,7 @@ Search via Swagger — `POST /search/topk`:
 - `"training algorithms on datasets"` → matches ML
 - `"best pizza recipe"` → low scores on everything (no minimum filter yet)
 
-<!-- Notice the scores. Photosynthesis is clearly the best match. The others score much lower. Try the pizza query — you get results, but they're all low relevance. We'll fix that with thresholds in Module 4. -->
+<!-- Notice the scores. Photosynthesis is clearly the best match. The others score much lower. Try the pizza query — you get results, but they're all low relevance. We'll fix that with thresholds later in this module. -->
 
 ---
 
@@ -703,30 +753,13 @@ K=1 → only the best match. K=10 → at most 3 (your collection size).
 
 `"best pizza recipe"` → still returns 3 results, but scores are very low. Top-K **always** returns K results — no minimum filter yet.
 
-> **Problem:** How do we exclude irrelevant results? → Module 4.
-
-### Exercise 2.4 — Run the tests
-
-```bash
-cd module-02 && dotnet test    # 11 tests passed
-```
+> **Problem:** How do we exclude irrelevant results? → Threshold search, later in this module.
 
 <!-- Let participants try these. The pizza test is important — it demonstrates the need for thresholds. -->
 
 ---
-layout: section
----
 
-# Module 3
-## Metadata
-
-~10 min
-
-<!-- Now we add structure to our data. Tags for filtering, properties for display. -->
-
----
-
-# Module 3 — Tags vs Properties
+# Module 2 — Tags vs Properties
 
 <style> table { font-size: 0.8em; } pre { font-size: 0.85em; } </style>
 
@@ -754,7 +787,7 @@ layout: section
 
 ---
 
-# Module 3 — Storing Metadata
+# Module 2 — Storing Metadata
 
 #### PayloadKeys.cs — Constants
 
@@ -788,7 +821,7 @@ Backward compatible — existing callers that don't send tags/properties are una
 
 ---
 
-# Module 3 — Try It
+# Module 2 — Try It (Metadata)
 
 ### Index with metadata (`POST /documents`)
 
@@ -811,24 +844,13 @@ You should see `tag_category`, `tag_level`, `prop_source_url` in the payload.
 
 <br>
 
-> Tags are stored but search still returns **all** documents ranked by similarity. **Filtering comes in Module 4.**
+> Tags are stored but search still returns **all** documents ranked by similarity. **Filtering comes next.**
 
-<!-- Index a few documents with different categories. Then search — you'll see the tags in the results. Next module we actually use them for filtering. -->
-
----
-layout: section
----
-
-# Module 4
-## Filtered Search
-
-~20 min
-
-<!-- Three new search strategies. This is where metadata becomes useful. -->
+<!-- Index a few documents with different categories. Then search — you'll see the tags in the results. Next we use them for filtering. -->
 
 ---
 
-# Module 4 — Three Search Strategies
+# Module 2 — Three Search Strategies
 
 <style> table { font-size: 0.85em; } p, li { font-size: 0.9em; } </style>
 
@@ -852,7 +874,7 @@ Only biology documents are scored. Physics is excluded before similarity is even
 
 ---
 
-# Module 4 — QdrantFilterFactory.cs
+# Module 2 — QdrantFilterFactory.cs
 
 The bridge between tag dictionaries and Qdrant filter objects:
 
@@ -878,7 +900,7 @@ public Filter? CreateGrpcFilter(Dictionary<string, string>? tags)
 
 ---
 
-# Module 4 — Threshold Search
+# Module 2 — Threshold Search
 
 ```csharp {all|3-4|6-10|12|all}
 app.MapPost("/search/threshold", async (...) =>
@@ -906,7 +928,7 @@ Returns **all** documents with similarity ≥ threshold (default 0.4).
 
 ---
 
-# Module 4 — Metadata-Only Search
+# Module 2 — Metadata-Only Search
 
 ```csharp {all|1|3-8|10-13|15|all}
 app.MapPost("/search/metadata", async (...) =>
@@ -937,7 +959,7 @@ app.MapPost("/search/metadata", async (...) =>
 
 ---
 
-# Module 4 — Try It
+# Module 2 — Try It (Filtered Search)
 
 ### Filtered top-K
 
@@ -969,16 +991,16 @@ All biology documents, no vector search involved.
 layout: section
 ---
 
-# Module 5
-## RAG Chat
+# Module 3
+## Generation
 
-~20 min · The core of the workshop
+~40 min · The core of the workshop
 
 <!-- This is the main event. We connect retrieval to generation. -->
 
 ---
 
-# Module 5 — The RAG Pipeline
+# Module 3 — The RAG Pipeline
 
 <br>
 
@@ -1008,7 +1030,7 @@ flowchart LR
 
 ---
 
-# Module 5 — System Prompt
+# Module 3 — System Prompt
 
 ```csharp
 private const string DefaultSystemPrompt =
@@ -1025,7 +1047,7 @@ private const string DefaultSystemPrompt =
 
 - **Grounds** the LLM in your documents
 - **Prevents hallucination** — if the context doesn't have the answer, it says so
-- Hard-coded in Module 5, customizable in Module 6
+- Hard-coded default, customizable per request via `systemPrompt`
 
 <br>
 
@@ -1035,7 +1057,7 @@ private const string DefaultSystemPrompt =
 
 ---
 
-# Module 5 — ChatEndpoints.cs (1/2)
+# Module 3 — ChatEndpoints.cs (1/2)
 
 Embed → Search → Assemble context:
 
@@ -1063,7 +1085,7 @@ for (var i = 0; i < hits.Count; i++)
 
 ---
 
-# Module 5 — ChatEndpoints.cs (2/2)
+# Module 3 — ChatEndpoints.cs (2/2)
 
 Send context + question to the LLM:
 
@@ -1092,10 +1114,14 @@ return Results.Ok(new ChatResponse(response.Text, sources));
 
 ---
 
-# Module 5 — Response Shape
+# Module 3 — Response Shape
 
 ```csharp
-public record ChatRequest(string Question, int K = 5);
+public record ChatRequest(
+    string Question, int K = 5,
+    float? ScoreThreshold = null,
+    Dictionary<string, string>? Tags = null,
+    string? SystemPrompt = null);
 
 public record ChatResponse(
     string Answer,
@@ -1125,7 +1151,7 @@ public record ChatSource(
 
 ---
 
-# Module 5 — Try It
+# Module 3 — Try It
 
 ### Index documents, then chat (`POST /chat`)
 
@@ -1158,19 +1184,8 @@ The LLM pulls from both biology and physics documents.
 <!-- The pizza test is important. It proves the system prompt works — the LLM won't make stuff up. -->
 
 ---
-layout: section
----
 
-# Module 6
-## Advanced Chat
-
-~15 min
-
-<!-- Three new knobs: custom system prompt, tag filters, score threshold. -->
-
----
-
-# Module 6 — Three New Controls
+# Module 3 — Three New Controls
 
 <br>
 
@@ -1178,7 +1193,7 @@ layout: section
 public record ChatRequest(
     string Question,
     int K = 5,
-    float? ScoreThreshold = null,          // NEW
+    float? ScoreThreshold = null,            // NEW
     Dictionary<string, string>? Tags = null, // NEW
     string? SystemPrompt = null              // NEW
 );
@@ -1198,7 +1213,7 @@ All optional — existing callers continue to work unchanged.
 
 ---
 
-# Module 6 — Custom System Prompts
+# Module 3 — Custom System Prompts
 
 <style> table { font-size: 0.75em; } p, li { font-size: 0.9em; } </style>
 
@@ -1232,7 +1247,7 @@ List<ChatMessage> messages =
 
 ---
 
-# Module 6 — Filtered + Threshold Chat
+# Module 3 — Filtered + Threshold Chat
 
 ```csharp
 // Tag-filtered retrieval
@@ -1265,11 +1280,11 @@ Only biology documents with score ≥ 0.4, answered in one sentence.
 
 ---
 
-# Module 6 — Exercises
+# Module 3 — Exercises
 
 <style> p, li, blockquote { font-size: 0.85em; } table { font-size: 0.8em; } h3 { font-size: 1.05em; } </style>
 
-### Exercise 6.1 — Persona switch
+### Exercise 3.6 — Persona switch
 
 Same question, three different system prompts:
 
@@ -1279,17 +1294,11 @@ Same question, three different system prompts:
 | *"You are a pirate..."* | Arrr, matey! (still grounded) |
 | *"Answer in haiku format"* | 5-7-5 syllable poem |
 
-### Exercise 6.2 — Combine all controls
+### Exercise 3.7 — Combine all controls
 
 ```json
 { "question": "How do plants get energy?", "k": 3, "scoreThreshold": 0.4,
   "tags": { "category": "biology" }, "systemPrompt": "Answer in exactly one sentence." }
-```
-
-### Exercise 6.3 — Run the tests
-
-```bash
-cd module-06 && dotnet test    # 30 tests passed
 ```
 
 <!-- The persona switch exercise is always fun. Let participants try creative prompts. -->
@@ -1298,16 +1307,16 @@ cd module-06 && dotnet test    # 30 tests passed
 layout: section
 ---
 
-# Module 7
-## Chunking Long Documents
+# Module 4
+## Chunking
 
-~25 min
+~30 min
 
 <!-- The most technically interesting module. Why and how to split documents. -->
 
 ---
 
-# Module 7 — Why Chunk?
+# Module 4 — Why Chunk?
 
 <style> p, li, blockquote { font-size: 0.85em; } table { font-size: 0.85em; } h3 { font-size: 1.05em; } </style>
 
@@ -1333,7 +1342,7 @@ Split long documents into smaller pieces, each gets its own vector.
 
 ---
 
-# Module 7 — Chunking Visual
+# Module 4 — Chunking Visual
 
 ```mermaid {scale: 0.5}
 flowchart LR
@@ -1364,7 +1373,7 @@ flowchart LR
 
 ---
 
-# Module 7 — TextChunker.cs
+# Module 4 — TextChunker.cs
 
 <div style="transform: scale(0.75); transform-origin: top left;">
 
@@ -1408,7 +1417,7 @@ public IReadOnlyList<TextChunk> Chunk(string text)
 
 ---
 
-# Module 7 — FindSentenceBoundary
+# Module 4 — FindSentenceBoundary
 
 <div style="transform: scale(0.90); transform-origin: top left;">
 
@@ -1448,7 +1457,7 @@ Priority: `\n` > `.?!` > whitespace > hard cut
 
 ---
 
-# Module 7 — Chunked DocumentIndexer
+# Module 4 — Chunked DocumentIndexer
 
 ```csharp
 var chunks = chunker.Chunk(request.Text);
@@ -1483,7 +1492,7 @@ Tags are copied to every chunk → tag-filtered searches still work.
 
 ---
 
-# Module 7 — PayloadKeys Update
+# Module 4 — PayloadKeys Update
 
 <style> p, li { font-size: 0.9em; } h3 { font-size: 1.05em; } pre { font-size: 0.85em; } </style>
 
@@ -1519,7 +1528,7 @@ Group results by `source_doc_id` to reconstruct the original document.
 
 ---
 
-# Module 7 — Models
+# Module 4 — Models
 
 <style> p, li { font-size: 0.9em; } h3 { font-size: 1.05em; } pre { font-size: 0.85em; } </style>
 
@@ -1554,7 +1563,7 @@ CHUNKING_MAX_SIZE=200 CHUNKING_OVERLAP=50 dotnet run
 
 ---
 
-# Module 7 — Try It
+# Module 4 — Try It
 
 ### Index a long document (3000+ chars)
 
@@ -1582,127 +1591,8 @@ The RAG pipeline retrieves chunks from different parts of the same document, ass
 layout: section
 ---
 
-# Module 8
-## Batch Operations
-
-~10 min
-
-<!-- Quick module. One new endpoint for bulk indexing. -->
-
----
-
-# Module 8 — Batch Endpoint
-
-<div style="transform: scale(0.75); transform-origin: top left;">
-
-```csharp {all|1-3|8|10-25|27-30|all}
-app.MapPost("/documents/batch", async (
-    [FromBody] IReadOnlyList<DocumentUpsertRequest> batch,
-    IDocumentIndexer indexer, CancellationToken ct) =>
-{
-    List<string> errors = [];
-    var succeeded = 0;
-
-    foreach (var req in batch)
-    {
-        if (string.IsNullOrWhiteSpace(req.Text))
-        {
-            var label = req.Id ?? "(empty)";
-            errors.Add($"[{label}]: Text is required and cannot be empty.");
-            continue;
-        }
-        try
-        {
-            await indexer.IndexAsync(req, ct);
-            succeeded++;
-        }
-        catch (Exception ex)
-        {
-            var label = req.Id ?? req.Text[..Math.Min(req.Text.Length, 40)];
-            errors.Add($"[{label}]: {ex.Message}");
-        }
-    }
-
-    return Results.Ok(new BatchUpsertResponse(
-        Total: batch.Count, Succeeded: succeeded,
-        Failed: errors.Count, Errors: errors));
-});
-```
-
-</div>
-
-<!-- Partial failure: one bad doc doesn't block the rest. Errors are collected with labels for easy debugging. -->
-
----
-
-# Module 8 — Partial Failure
-
-```csharp
-public record BatchUpsertResponse(
-    int Total,
-    int Succeeded,
-    int Failed,
-    IReadOnlyList<string> Errors
-);
-```
-
-<br>
-
-### Example: one bad document in a batch of 3
-
-```json
-// Request
-[
-  { "id": "good-doc", "text": "This is fine." },
-  { "id": "bad-doc",  "text": "" },
-  { "id": "also-good","text": "This is also fine." }
-]
-
-// Response
-{ "total": 3, "succeeded": 2, "failed": 1,
-  "errors": ["[bad-doc]: Text is required and cannot be empty."] }
-```
-
-Good documents are indexed. Bad ones are reported. Nothing blocks.
-
-<!-- The error label uses the document ID when available, or the first 40 chars of text. Makes it easy to find which item failed. -->
-
----
-
-# Module 8 — Try It
-
-### Batch index via Swagger (`POST /documents/batch`)
-
-```json
-[
-  {"id": "bio-001", "text": "Photosynthesis converts sunlight into energy.", "tags": {"category": "biology"}},
-  {"id": "phys-001", "text": "Quantum entanglement links particles instantly.", "tags": {"category": "physics"}},
-  {"id": "cs-001", "text": "Machine learning finds patterns in data.", "tags": {"category": "computer-science"}}
-]
-```
-
-Response: `{ "total": 3, "succeeded": 3, "failed": 0, "errors": [] }`
-
-### Then search and chat
-
-```json
-{"question": "Summarize the topics covered in the indexed documents"}
-```
-
-The LLM should reference biology, physics, and computer science.
-
-```bash
-cd module-08 && dotnet test    # 48 tests passed
-```
-
-<!-- Quick module. Batch, verify, move on. -->
-
----
-layout: section
----
-
-# Module 9
-## Chat UI
+# Module 5
+## User Interface
 
 ~20 min · Bonus module
 
@@ -1710,7 +1600,7 @@ layout: section
 
 ---
 
-# Module 9 — Static File Middleware
+# Module 5 — Static File Middleware
 
 <br>
 
@@ -1723,11 +1613,7 @@ app.UseStaticFiles();    // serves everything in wwwroot/
 
 <br>
 
-`GET /` moved to `GET /api/info` so the root URL serves the frontend.
-
-```csharp
-app.MapGet("/api/info", () => Results.Ok(new { ... }));
-```
+Root URL now serves the frontend (`index.html`). The `GET /api/info` and `GET /health` endpoints use the same `MapInfoEndpoints` extension method as every other module.
 
 <br>
 
@@ -1741,7 +1627,7 @@ app.MapGet("/api/info", () => Results.Ok(new { ... }));
 
 ---
 
-# Module 9 — Four Tabs
+# Module 5 — Four Tabs
 
 <style> table { font-size: 0.8em; } p, li { font-size: 0.9em; } h3 { font-size: 1.05em; } </style>
 
@@ -1751,6 +1637,8 @@ app.MapGet("/api/info", () => Results.Ok(new { ... }));
 | **Search** | `POST /search/topk`, `/threshold`, `/metadata` | Three modes, tag widgets, threshold slider |
 | **Documents** | `POST /documents`, `/documents/batch` | Single + batch indexing, chunk count feedback |
 | **Status** | `GET /api/info`, `GET /health` | Config grid, auto-refreshing health indicator |
+
+<br>
 
 ### Reusable Components
 
@@ -1763,13 +1651,14 @@ app.MapGet("/api/info", () => Results.Ok(new { ... }));
 
 ---
 
-# Module 9 — Try It
+# Module 5 — Try It
 
 ### 1. Start & open
 
 ```bash
-cd module-09 && docker compose up -d
-cd src/Qdrant.Demo.Api && dotnet run
+cd module-05
+docker compose up -d
+dotnet run --project src/Qdrant.Demo.Api
 ```
 
 Visit **http://localhost:8080/** — you see the Chat tab.
@@ -1790,31 +1679,23 @@ Visit **http://localhost:8080/** — you see the Chat tab.
 
 ---
 
-# Module 9 — Exercises
+# Module 5 — Exercises
 
 <br>
 
-### Exercise 9.1 — Theme switching
+### Exercise 5.1 — Theme switching
 
 The nav bar has a theme selector: **Auto / Light / Dark**. Try switching.
 
 Persisted to `localStorage` — survives page reloads.
 
-### Exercise 9.2 — Custom system prompt
+### Exercise 5.2 — Custom system prompt
 
 In the Chat tab → Advanced settings:
 
 > *"You are a pirate. Answer in pirate language, but still base your answers on the provided context documents."*
 
 Tone changes, facts stay grounded.
-
-### Exercise 9.3 — Run the tests
-
-```bash
-cd module-09 && dotnet test    # 48 tests passed
-```
-
-The frontend doesn't change any backend logic — all existing tests still pass.
 
 <!-- Let participants play with the UI. The pirate prompt is always a crowd-pleaser. -->
 
@@ -1835,17 +1716,13 @@ You've built a full RAG solution from scratch.
 <style> p, li { font-size: 1.3em; } </style>
 
 - **Module 0**: Setup: Qdrant connection, Swagger, health check
-- **Module 1**: Document indexing with embeddings
-- **Module 2**: Top-K similarity search
-- **Module 3**: Tag & property metadata storage
-- **Module 4**: Filtered search (top-K, threshold, metadata)
-- **Module 5**: Basic RAG chat
-- **Module 6**: Advanced chat (custom prompts, filters, threshold)
-- **Module 7**: Text chunking with sentence-boundary awareness
-- **Module 8**: Batch document indexing
-- **Module 9**: Chat UI: static frontend for every endpoint
+- **Module 1**: Document indexing with embeddings and batch operations
+- **Module 2**: Retrieval: similarity search, metadata, filtering
+- **Module 3**: Generation: RAG pipeline, custom prompts, filtered chat
+- **Module 4**: Text chunking with sentence-boundary awareness
+- **Module 5**: User Interface: static frontend for every endpoint
 
-<!-- Ten modules, one complete RAG system. From empty API to full-featured AI application. -->
+<!-- Six modules, one complete RAG system. From empty API to full-featured AI application. -->
 
 ---
 
@@ -1855,14 +1732,14 @@ You've built a full RAG solution from scratch.
 
 | Endpoint | Method | Description | Module |
 |----------|--------|-------------|--------|
-| `/` or `/api/info` | GET | Service info | 0 / 9 |
+| `/api/info` | GET | Service info | 0 |
 | `/health` | GET | Health check | 0 |
 | `/documents` | POST | Index a single document | 1 |
+| `/documents/batch` | POST | Batch document indexing | 1 |
 | `/search/topk` | POST | Top-K similarity search | 2 |
-| `/search/threshold` | POST | Threshold similarity search | 4 |
-| `/search/metadata` | POST | Metadata-only search | 4 |
-| `/chat` | POST | Full RAG pipeline | 5 |
-| `/documents/batch` | POST | Batch document indexing | 8 |
+| `/search/threshold` | POST | Threshold similarity search | 2 |
+| `/search/metadata` | POST | Metadata-only search | 2 |
+| `/chat` | POST | Full RAG pipeline | 3 |
 
 <!-- Eight endpoints total. Each one builds on the foundation from earlier modules. -->
 

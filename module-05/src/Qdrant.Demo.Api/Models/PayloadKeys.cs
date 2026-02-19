@@ -17,4 +17,15 @@ public static class PayloadKeys
 
     /// <summary>Prefix for informational property fields (<c>prop_{key}</c>).</summary>
     public const string PropertyPrefix = "prop_";
+
+    // ─── Chunking metadata ────────────────────────────────
+
+    /// <summary>Payload field storing the source document id when text is chunked.</summary>
+    public const string SourceDocId = "source_doc_id";
+
+    /// <summary>Payload field storing the zero-based chunk index.</summary>
+    public const string ChunkIndex = "chunk_index";
+
+    /// <summary>Payload field storing the total number of chunks for the source document.</summary>
+    public const string TotalChunks = "total_chunks";
 }
