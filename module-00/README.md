@@ -65,7 +65,7 @@ Wait a few seconds, then verify Qdrant is running:
 curl http://localhost:6333/healthz
 ```
 
-You should see `ok` or similar. Open the **Qdrant Dashboard** in your browser:
+You should see `healthz check passed` (or similar). Open the **Qdrant Dashboard** in your browser:
 
 👉 **http://localhost:6333/dashboard**
 
