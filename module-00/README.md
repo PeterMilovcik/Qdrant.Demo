@@ -179,6 +179,38 @@ At this point you have:
 - [x] The Qdrant Dashboard showing your collection
 - [x] Understanding of: collections, points (conceptually), and the bootstrapper pattern
 
+## 🔧 Troubleshooting
+
+### NuGet restore fails — corporate / custom artifact source
+
+If you're working in a corporate environment that uses a custom NuGet artifact repository (e.g., Artifactory, Azure DevOps Artifacts) instead of the default `nuget.org`, the `dotnet restore` step may fail because the required packages aren't available in your configured source.
+
+**Option A — Enable an existing `nuget.org` source**
+
+Your machine may already have a `nuget.org` source configured but disabled. Run:
+
+```bash
+dotnet nuget enable source nuget.org
+```
+
+This re-enables the built-in `nuget.org` source so that `dotnet restore` can pull packages from it alongside your corporate feed.
+
+**Option B — Add `nuget.org` as a new source**
+
+If no `nuget.org` source exists at all, add it manually:
+
+```bash
+dotnet nuget add source https://api.nuget.org/v3/index.json --name "nuget.org"
+```
+
+This registers the official NuGet Gallery as an additional package source. Packages that aren't found in your corporate feed will now be resolved from `nuget.org`.
+
+> **Tip:** You can list your currently configured sources with `dotnet nuget list source` to see which feeds are active before making changes.
+
+After running either command, retry `dotnet restore` (or `dotnet run`, which restores automatically).
+
+---
+
 ## 🧹 Clean Up
 
 Before moving to the next module, stop everything started in this module:

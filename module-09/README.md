@@ -324,7 +324,23 @@ Remove-Item Env:CHUNKING_OVERLAP -ErrorAction SilentlyContinue
 unset ASPNETCORE_URLS OPENAI_API_KEY CHUNKING_MAX_SIZE CHUNKING_OVERLAP
 ```
 
-5. **Delete the repo** — if you no longer need the workshop files:
+5. **Revert NuGet source changes** — only if you modified your NuGet sources in [Module 00](../module-00/README.md#-troubleshooting):
+
+   If you **enabled** a previously disabled `nuget.org` source, disable it again:
+
+   ```bash
+   dotnet nuget disable source nuget.org
+   ```
+
+   If you **added** `nuget.org` as a new source, remove it:
+
+   ```bash
+   dotnet nuget remove source nuget.org
+   ```
+
+   > **Tip:** Run `dotnet nuget list source` to check your current state before making changes.
+
+6. **Delete the repo** — if you no longer need the workshop files:
 
 ```powershell
 # PowerShell — from the parent directory
