@@ -488,5 +488,3 @@ docker compose down
 This stops Qdrant so the next module starts fresh.
 
 **Next →** [Module 3 — Generation](../module-03/README.md)
-
-**Next →** [Module 3 — RAG Chat](../module-03/README.md)
