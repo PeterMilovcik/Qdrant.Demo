@@ -1,6 +1,10 @@
 ﻿# Qdrant.Demo — RAG Workshop
 
-A hands-on **.NET 10 + Qdrant + OpenAI** workshop that teaches how to build a complete **Retrieval-Augmented Generation (RAG)** solution from scratch. You'll start with an empty API, and module by module, add indexing, search, metadata filtering, chat, chunking, and batch operations — learning one concept at a time.
+Ever wondered how AI chatbots answer questions using *your* data instead of making things up? That's **Retrieval-Augmented Generation (RAG)** and this workshop teaches you how to build one from scratch.
+
+In about **3 hours**, you'll go from an empty .NET API to a fully working RAG system: store documents as vector embeddings in **Qdrant**, search them by meaning (not just keywords), and let **OpenAI** generate answers grounded in real content — with zero hallucination. Each of the 10 modules introduces exactly one concept — indexing, semantic search, metadata filtering, chat, text chunking, batch operations, so you learn by building, one step at a time.
+
+**Stack:** .NET 10 · Qdrant · OpenAI · Docker
 
 ```mermaid
 flowchart LR
