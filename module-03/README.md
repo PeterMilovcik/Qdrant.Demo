@@ -376,6 +376,66 @@ At this point you have:
 - [x] Score threshold to exclude weak matches
 - [x] Understanding of: RAG pattern, system prompts, context assembly, IChatClient, filtered RAG, context quality tuning
 
+## 🃏 Flashcards
+
+Test your understanding of this module's key concepts. Click a question to reveal the answer.
+
+<details>
+<summary>What does RAG stand for, and what are its three steps?</summary>
+
+**Retrieval-Augmented Generation.** The three steps are: (1) **Index** — embed documents and store them in a vector database, (2) **Retrieve** — embed the user's query and find the most similar documents, (3) **Generate** — feed retrieved documents into an LLM to produce a grounded answer.
+
+</details>
+
+<details>
+<summary>Why use RAG instead of just asking the LLM directly?</summary>
+
+LLMs have a training cutoff and don't know about *your* data. Without RAG, they may **hallucinate** facts. RAG grounds the answer in actual indexed documents, making responses specific, verifiable, and up-to-date.
+
+</details>
+
+<details>
+<summary>What is the purpose of the system prompt in the RAG pipeline?</summary>
+
+It tells the LLM the rules of engagement — most importantly, to answer **only** from the provided context documents and to clearly state when it doesn't have enough information, rather than making up facts.
+
+</details>
+
+<details>
+<summary>What happens when no indexed documents are relevant to the user's question?</summary>
+
+The system prompt instructs the LLM to say it doesn't have enough information to answer. It should **not** hallucinate or make up facts. With a `scoreThreshold`, irrelevant documents are excluded before the LLM ever sees them.
+
+</details>
+
+<details>
+<summary>How does the <code>scoreThreshold</code> parameter improve answer quality?</summary>
+
+It excludes documents whose similarity score falls below the threshold from the LLM's context window. This prevents the model from being distracted by low-relevance "noise" documents that might dilute or confuse the answer.
+
+</details>
+
+<details>
+<summary>Why is the <code>systemPrompt</code> field exposed as a per-request parameter?</summary>
+
+It lets callers customize the LLM's persona without changing server code — e.g., a formal academic, a children's teacher, or a customer support bot. Same RAG pipeline, different tone and behavior.
+
+</details>
+
+<details>
+<summary>What role does the <code>IChatClient</code> abstraction play?</summary>
+
+It decouples the chat endpoint from any specific LLM provider (OpenAI, Azure OpenAI, etc.). The endpoint depends on the interface, making it easy to swap providers or mock during testing.
+
+</details>
+
+<details>
+<summary>How does tag filtering in the <code>/chat</code> endpoint affect the RAG pipeline?</summary>
+
+Tags narrow which documents are retrieved as context **before** the LLM sees them. If you have thousands of documents across categories, filtering ensures the LLM only reasons over relevant ones — improving both accuracy and speed.
+
+</details>
+
 ## 🧹 Clean Up
 
 Before moving to the next module, stop everything started in this module:

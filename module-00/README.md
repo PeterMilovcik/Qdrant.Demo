@@ -184,6 +184,59 @@ At this point you have:
 - [x] The Qdrant Dashboard showing your collection
 - [x] Understanding of: collections, points (conceptually), and the bootstrapper pattern
 
+## 🃏 Flashcards
+
+Test your understanding of this module's key concepts. Click a question to reveal the answer.
+
+<details>
+<summary>What is a vector database?</summary>
+
+A database optimized for storing and searching **high-dimensional vectors** (arrays of floats). Instead of matching exact values like a traditional database, it finds items that are *similar* based on the distance between their vectors.
+
+</details>
+
+<details>
+<summary>What is a Qdrant "point"?</summary>
+
+The basic storage unit in Qdrant. A point consists of three things: a **unique ID** (UUID or integer), a **vector** (array of floats), and an optional **payload** (key-value metadata).
+
+</details>
+
+<details>
+<summary>What is a "collection" in Qdrant, and what constraint does it enforce?</summary>
+
+A collection is like a database table — it groups related points together. All vectors in a collection must have the **same dimensionality** (e.g., all 1536-dimensional).
+
+</details>
+
+<details>
+<summary>Why does the QdrantBootstrapper use a retry loop?</summary>
+
+Qdrant may not be fully ready when the API starts (especially in Docker). The bootstrapper retries up to 30 times (1 second apart) to create the collection, tolerating slow container startup.
+
+</details>
+
+<details>
+<summary>What distance metric does this workshop use, and what does it measure?</summary>
+
+**Cosine similarity.** It measures the angle between two vectors — values range from 0 (unrelated) to 1 (identical meaning). It compares the *direction* of vectors, not their magnitude.
+
+</details>
+
+<details>
+<summary>What happens if the bootstrapper tries to create a collection that already exists?</summary>
+
+The `AlreadyExists` gRPC exception is caught silently, and the bootstrapper logs "Collection ready." The operation is **idempotent** — safe to repeat without side effects.
+
+</details>
+
+<details>
+<summary>Why is the API run locally with <code>dotnet run</code> instead of in Docker?</summary>
+
+The API runs locally for faster development iteration — you can edit code and restart quickly. Only Qdrant runs in Docker because it's infrastructure (a database), not code you're actively developing.
+
+</details>
+
 ## 🔧 Troubleshooting
 
 ### NuGet restore fails — corporate / custom artifact source

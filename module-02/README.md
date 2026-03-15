@@ -474,6 +474,66 @@ At this point you have:
 - [x] `QdrantFilterFactory` converting tag dictionaries to Qdrant filter objects
 - [x] Understanding of: cosine similarity, pre-filtering, threshold search, scroll API, gRPC filters
 
+## 🃏 Flashcards
+
+Test your understanding of this module's key concepts. Click a question to reveal the answer.
+
+<details>
+<summary>What does a cosine similarity score of 1.0 mean? What about 0.0?</summary>
+
+**1.0** means the vectors point in the exact same direction — the texts are semantically identical. **0.0** means they are completely unrelated. Real-world text comparisons typically fall in the **0.3–0.9** range.
+
+</details>
+
+<details>
+<summary>When would you use Top-K search vs. Threshold search?</summary>
+
+Use **Top-K** when you want a fixed number of results (e.g., "give me 5 documents"). Use **Threshold** when you want *everything* above a quality bar (e.g., "give me all documents with similarity ≥ 0.5") — the result count varies.
+
+</details>
+
+<details>
+<summary>What is the difference between tags and properties?</summary>
+
+**Tags** (prefixed `tag_`) are indexed by Qdrant and can be used for **filtering** during search. **Properties** (prefixed `prop_`) are stored and returned with results but are **not filterable** — they're for display only.
+
+</details>
+
+<details>
+<summary>What is pre-filtering, and why is it efficient?</summary>
+
+Pre-filtering applies tag conditions **before** computing vector similarity. This means Qdrant only compares vectors for documents that match the filter, avoiding wasted similarity computations on irrelevant documents.
+
+</details>
+
+<details>
+<summary>Why are tag and property keys prefixed with <code>tag_</code> and <code>prop_</code>?</summary>
+
+Qdrant stores all metadata in a flat key-value payload. Prefixing avoids naming collisions between tags, properties, and system fields (like `text` and `indexed_at_ms`), and lets the filter factory automatically identify which fields to filter on.
+
+</details>
+
+<details>
+<summary>How does the QdrantFilterFactory handle multiple tags?</summary>
+
+Multiple tags are combined with **AND** logic using a `Must` clause. A document must match *all* specified tags to be included. If no tags are provided, the factory returns `null` (no filter — all documents are considered).
+
+</details>
+
+<details>
+<summary>What does the metadata-only scroll endpoint do differently from Top-K and Threshold?</summary>
+
+It doesn't use vectors at all — no embedding, no similarity computation. It simply walks through documents matching the tag filters using Qdrant's `ScrollAsync` method. Useful for browsing or exporting subsets of your collection.
+
+</details>
+
+<details>
+<summary>What does <code>payloadSelector: true</code> do in a search call?</summary>
+
+It tells Qdrant to include the stored payload (text, tags, properties, timestamps) in each search result. Without it, you'd only get point IDs and scores.
+
+</details>
+
 ##  Clean Up
 
 Before moving to the next module, stop everything started in this module:

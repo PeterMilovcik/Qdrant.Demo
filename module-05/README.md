@@ -240,6 +240,47 @@ Congratulations — you've completed the entire workshop! Here's everything you 
 
 ---
 
+## 🃏 Flashcards
+
+Test your understanding of this module's key concepts. Click a question to reveal the answer.
+
+<details>
+<summary>What two middleware calls enable static file serving in ASP.NET Core, and why does their order matter?</summary>
+
+`UseDefaultFiles()` and `UseStaticFiles()`. `UseDefaultFiles()` must come **first** because it rewrites the URL `/` to `/index.html` — if `UseStaticFiles()` ran first, it wouldn't know to serve `index.html` for the root path.
+
+</details>
+
+<details>
+<summary>What is a "classless" CSS framework, and which one does this project use?</summary>
+
+**Pico.css** — a classless framework that styles semantic HTML elements (`<article>`, `<nav>`, `<details>`, etc.) directly, without requiring CSS classes. You write clean HTML and get a good-looking UI automatically, including dark/light mode.
+
+</details>
+
+<details>
+<summary>What are the four tabs in the frontend, and what does each do?</summary>
+
+**Chat** — conversational RAG with expandable sources. **Search** — Top-K, Threshold, and Metadata search modes with score visualizations. **Documents** — single and batch document indexing. **Status** — config display and auto-refreshing health check.
+
+</details>
+
+<details>
+<summary>Why was the frontend built with vanilla JavaScript instead of a framework like React?</summary>
+
+To keep the workshop focused on RAG concepts, not frontend tooling. Vanilla JS with `fetch()` API calls means no build step, no npm dependencies, no transpilation — participants see the HTTP interactions directly without framework abstractions.
+
+</details>
+
+<details>
+<summary>Can Swagger UI and the static frontend coexist? How?</summary>
+
+Yes. The static file middleware serves `wwwroot/` content at the root URL (`/`), while Swagger UI is mounted at `/swagger`. API routes like `/chat` and `/search/topk` continue to work alongside both. Each serves a different path.
+
+</details>
+
+---
+
 ## 🧹 Clean Up
 
 When you're done exploring, stop everything:

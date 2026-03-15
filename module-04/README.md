@@ -287,6 +287,59 @@ At this point you have:
 - [x] Multi-chunk documents with parent-child metadata in Qdrant
 - [x] Understanding of: chunking strategy, overlap, sentence boundaries, chunking metadata
 
+## 🃏 Flashcards
+
+Test your understanding of this module's key concepts. Click a question to reveal the answer.
+
+<details>
+<summary>Why do long documents need to be chunked before embedding?</summary>
+
+Embedding models have a **token limit** (e.g., 8,191 tokens for `text-embedding-3-small`). Documents exceeding this limit cause API errors. Even shorter-but-long documents produce lower-quality embeddings because the model must compress too much meaning into a single vector.
+
+</details>
+
+<details>
+<summary>Why use character-based chunking instead of token-based?</summary>
+
+Counting characters is simpler and doesn't require a tokenizer library. Since typical English tokenizers average ~4 characters per token, 2,000 characters ≈ 500 tokens — safely under the 8,191 token limit with a comfortable margin.
+
+</details>
+
+<details>
+<summary>What is sentence-boundary awareness and why does it matter?</summary>
+
+Instead of cutting at a fixed character count (which may break mid-sentence), the chunker scans backward from the cut point to find the nearest sentence boundary (`.`, `?`, `!`, or `\n`). This produces cleaner, more meaningful chunks.
+
+</details>
+
+<details>
+<summary>What is the purpose of overlap between adjacent chunks?</summary>
+
+Overlap (default 200 chars) ensures that context at chunk boundaries isn't lost. If a sentence straddles two chunks, the overlap guarantees it appears completely in at least one of them.
+
+</details>
+
+<details>
+<summary>What metadata is stored for each chunk in Qdrant?</summary>
+
+Three extra payload fields: `source_doc_id` (the original document's point ID), `chunk_index` (zero-based position), and `total_chunks` (how many chunks the document was split into). This enables grouping results by source document.
+
+</details>
+
+<details>
+<summary>What happens when a document is short enough to fit in a single chunk?</summary>
+
+It is returned as-is — no splitting, no overlap, no chunk metadata. The point ID stays the same as the original document ID. Single-chunk documents behave identically to how they did before chunking was introduced.
+
+</details>
+
+<details>
+<summary>How are tags and properties handled when a document is split into chunks?</summary>
+
+Tags and properties from the original request are copied to **every** chunk. This ensures tag-filtered searches still match regardless of which chunk is most relevant.
+
+</details>
+
 ## 🧹 Clean Up
 
 Before moving to the next module, stop everything started in this module:
