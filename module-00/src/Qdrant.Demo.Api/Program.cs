@@ -1,3 +1,7 @@
+using Qdrant.Client;
+using Qdrant.Demo.Api.Endpoints;
+using Qdrant.Demo.Api.Services;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ---- configuration (appsettings.json → env vars override) ----
