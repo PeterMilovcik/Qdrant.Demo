@@ -31,7 +31,7 @@ Cosine similarity measures the angle between two vectors:
 
 ```mermaid
 flowchart LR
-    Q["🔍 Query text"] -->|embed| OAI["OpenAI<br>text-embedding-3-small"]
+    Q["🔍 Query text"] -->|embed| OAI["Azure OpenAI<br>text-embedding-3-small"]
     OAI -->|"1536-float vector"| QD
     subgraph QD ["Qdrant"]
         direction TB

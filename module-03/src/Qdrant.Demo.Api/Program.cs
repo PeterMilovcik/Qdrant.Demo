@@ -1,5 +1,6 @@
+using System.ClientModel;
+using Azure.AI.OpenAI;
 using Microsoft.Extensions.AI;
-using OpenAI;
 using Qdrant.Client;
 using Qdrant.Demo.Api.Endpoints;
 using Qdrant.Demo.Api.Services;
@@ -14,9 +15,10 @@ var qdrantHttpPort = int.Parse(config["QDRANT_HTTP_PORT"] ?? config["Qdrant:Http
 var qdrantGrpcPort = int.Parse(config["QDRANT_GRPC_PORT"] ?? config["Qdrant:GrpcPort"] ?? "6334");
 var collectionName = config["QDRANT_COLLECTION"] ?? config["Qdrant:Collection"] ?? "documents";
 var embeddingDim   = int.Parse(config["EMBEDDING_DIM"]    ?? config["Qdrant:EmbeddingDim"] ?? "1536");
-var embeddingModel = config["EMBEDDING_MODEL"] ?? config["OpenAI:EmbeddingModel"] ?? "text-embedding-3-small";
-var chatModel      = config["CHAT_MODEL"]      ?? config["OpenAI:ChatModel"]      ?? "gpt-4o-mini";
-var openAiApiKey   = config["OPENAI_API_KEY"]  ?? config["OpenAI:ApiKey"] ?? throw new InvalidOperationException("Set the OPENAI_API_KEY environment variable or OpenAI:ApiKey in appsettings.json.");
+var embeddingModel = config["EMBEDDING_MODEL"] ?? config["AzureOpenAI:EmbeddingModel"] ?? "text-embedding-3-small";
+var chatModel      = config["CHAT_MODEL"]      ?? config["AzureOpenAI:ChatModel"]      ?? "gpt-4o-mini";
+var azureEndpoint  = config["AZURE_OPENAI_ENDPOINT"] ?? config["AzureOpenAI:Endpoint"] ?? throw new InvalidOperationException("Set the AZURE_OPENAI_ENDPOINT environment variable or AzureOpenAI:Endpoint in appsettings.json.");
+var azureApiKey    = config["AZURE_OPENAI_API_KEY"]  ?? config["AzureOpenAI:ApiKey"]  ?? throw new InvalidOperationException("Set the AZURE_OPENAI_API_KEY environment variable or AzureOpenAI:ApiKey in appsettings.json.");
 
 // ---- service registration ----
 builder.Services.AddEndpointsApiExplorer();
@@ -26,7 +28,7 @@ builder.Services.AddSwaggerGen(opts =>
 });
 
 builder.Services.AddSingleton(_ => new QdrantClient(qdrantHost, qdrantGrpcPort));
-var openAi = new OpenAIClient(openAiApiKey);
+var openAi = new AzureOpenAIClient(new Uri(azureEndpoint), new ApiKeyCredential(azureApiKey));
 builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
     openAi.GetEmbeddingClient(embeddingModel).AsIEmbeddingGenerator());
 builder.Services.AddSingleton<IChatClient>(

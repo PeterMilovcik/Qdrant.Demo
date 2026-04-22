@@ -14,7 +14,7 @@ You're invited to a hands-on **RAG Workshop** on **[DATE]** at **[TIME]** in **[
 
 **Retrieval-Augmented Generation (RAG)** is one of the most practical ways to combine Large Language Models with your own data. Instead of hoping the AI "knows" the answer, you feed it the right documents first — so every response is grounded in facts, not guesswork.
 
-In this workshop, we'll build a complete RAG solution from scratch using **.NET 10, Qdrant (a vector database), and OpenAI**. The workshop combines guided slides with hands-on coding — you'll build each module step by step.
+In this workshop, we'll build a complete RAG solution from scratch using **.NET 10, Qdrant (a vector database), and Azure OpenAI**. The workshop combines guided slides with hands-on coding — you'll build each module step by step.
 
 **Workshop repository:** 
 
@@ -29,7 +29,7 @@ By the end of the ~3-hour session, you'll have built a working API that can:
 - Turn documents into **vector embeddings** and store them in a database
 - Find documents by **meaning** (not keywords) using cosine similarity
 - Filter results by **metadata tags**
-- Answer questions using **OpenAI**, grounded in your own documents
+- Answer questions using **Azure OpenAI**, grounded in your own documents
 - Handle long documents by **chunking** them intelligently
 - Process **batch uploads** efficiently
 - Serve a **chat UI** where you can interact with everything visually
@@ -68,7 +68,7 @@ dotnet --version        # 10.0.101 or later
 
 If both work — you're all set!
 
-> **OpenAI API key** will be provided at the start of the session. You don't need your own.
+> **Azure OpenAI endpoint and API key** will be provided at the start of the session. You don't need your own.
 
 ## Questions?
 

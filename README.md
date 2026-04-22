@@ -2,17 +2,17 @@
 
 Ever wondered how AI chatbots answer questions using *your* data instead of making things up? That's **Retrieval-Augmented Generation (RAG)** and this workshop teaches you how to build one from scratch.
 
-In about **3 hours**, you'll go from an empty .NET API to a fully working RAG system: store documents as vector embeddings in **Qdrant**, search them by meaning (not just keywords), and let **OpenAI** generate answers grounded in real content, with zero hallucination. Each of the 6 modules introduces exactly one concept (indexing, retrieval, generation, text chunking), so you learn by building, one step at a time.
+In about **3 hours**, you'll go from an empty .NET API to a fully working RAG system: store documents as vector embeddings in **Qdrant**, search them by meaning (not just keywords), and let **Azure OpenAI** generate answers grounded in real content, with zero hallucination. Each of the 6 modules introduces exactly one concept (indexing, retrieval, generation, text chunking), so you learn by building, one step at a time.
 
-**Stack:** .NET 10 · Qdrant · OpenAI · Docker
+**Stack:** .NET 10 · Qdrant · Azure OpenAI · Docker
 
 ```mermaid
 flowchart LR
-    T["Documents + metadata"] -->|embed| EMB["OpenAI Embeddings"]
+    T["Documents + metadata"] -->|embed| EMB["Azure OpenAI Embeddings"]
     EMB -->|vectors| QD[("Qdrant")]
     UQ["User Query"] -->|embed| EMB
     EMB -->|search| QD
-    QD -->|top results| LLM["OpenAI Chat"]
+    QD -->|top results| LLM["Azure OpenAI Chat"]
     UQ -.->|question| LLM
     LLM --> A["Grounded Answer"]
 ```
@@ -44,10 +44,10 @@ The [`completed/`](completed/) folder contains the final state with **all** feat
 |------|---------|-----|
 | [Docker Desktop](https://www.docker.com/products/docker-desktop/) | 4.x+ | Runs the Qdrant vector database ([free alternatives](materials/docker-alternatives.md)) |
 | [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | 10.0+ | Build & run the API locally |
-| [OpenAI API key](https://platform.openai.com/api-keys) | -- | Embeddings (`text-embedding-3-small`) and chat (`gpt-4o-mini`) |
+| [Azure OpenAI](https://portal.azure.com/) | -- | Azure OpenAI endpoint, API key, and deployments for `text-embedding-3-small` and `gpt-4o-mini` |
 | `curl` or similar HTTP client | -- | Test the API endpoints |
 
-> **Cost note:** The workshop uses OpenAI's cheapest models. Expected cost is well under $1 per participant for the full workshop.
+> **Cost note:** The workshop uses Azure OpenAI's cheapest models. Expected cost is well under $1 per participant for the full workshop.
 
 > **Running a workshop?** Send the [pre-workshop email](materials/pre-workshop-email.md) to participants ~1 week before. It lists everything they need to install ahead of time. This setup is **corporate-network friendly** -- .NET uses the Windows certificate store, so corporate SSL inspection proxies work transparently.
 

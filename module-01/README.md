@@ -1,6 +1,6 @@
 # Module 1 — Index
 
-> **~25 min** · Requires an OpenAI API key · Builds on [Module 0](../module-00/README.md)
+> **~25 min** · Requires an Azure OpenAI resource · Builds on [Module 0](../module-00/README.md)
 
 ## Learning objective
 
@@ -23,7 +23,7 @@ Think of an **embedding** as a numerical fingerprint for a piece of text. Instea
 | Concept | Analogy |
 |---------|---------|
 | **Embedding** | A GPS coordinate for text — similar texts land near each other on the "map" |
-| **Vector** | The actual list of numbers — in our case **1536 floats** from OpenAI's `text-embedding-3-small` model |
+| **Vector** | The actual list of numbers — in our case **1536 floats** from Azure OpenAI's `text-embedding-3-small` deployment |
 | **Similarity** | The distance between two coordinates — closer = more similar meaning |
 
 #### Why does this matter?
@@ -38,7 +38,7 @@ This is the foundation of **semantic search** — comparing meaning instead of w
 
 ```mermaid
 flowchart LR
-    A["📄 Text"] -->|send to model| B["🤖 OpenAI"]
+    A["📄 Text"] -->|send to model| B["🤖 Azure OpenAI"]
     B -->|returns| C["🔢 Vector: 1536 floats"]
 ```
 
@@ -47,14 +47,14 @@ flowchart LR
 When you call `POST /documents`, the API:
 
 1. **Hashes the id** (or the text, if no id is given) into a deterministic UUID — the `pointId`
-2. **Calls OpenAI** to generate an embedding (1536 floats) from the text
+2. **Calls Azure OpenAI** to generate an embedding (1536 floats) from the text
 3. **Builds a Qdrant point** with the UUID, the vector, and a payload containing the text + a timestamp
 4. **Upserts** the point into Qdrant (insert-or-update — if the point-id already exists, it's overwritten)
 
 ```mermaid
 flowchart LR
     A["📝 id + text"] -->|SHA-256 hash| B["🔑 pointId"]
-    A -->|embed| C["🤖 OpenAI"]
+    A -->|embed| C["🤖 Azure OpenAI"]
     C -->|vector| D["📦 Qdrant Point"]
     B -->|uuid| D
     A -->|text + timestamp| D
@@ -84,16 +84,16 @@ When you have multiple documents to index, calling `POST /documents` once per do
 | `Models/PayloadKeys.cs` | Constants for payload field names (`text`, `indexed_at_ms`) |
 | `Models/Requests.cs` | `DocumentUpsertRequest`, `DocumentUpsertResponse`, and `BatchUpsertResponse` DTOs |
 | `Services/IEmbeddingService.cs` | Interface for text → vector conversion |
-| `Services/EmbeddingService.cs` | OpenAI implementation of the embedding service (via `IEmbeddingGenerator<string, Embedding<float>>`) |
+| `Services/EmbeddingService.cs` | Azure OpenAI implementation of the embedding service (via `IEmbeddingGenerator<string, Embedding<float>>`) |
 | `Services/IDocumentIndexer.cs` | Interface for the embed + upsert pipeline |
 | `Services/DocumentIndexer.cs` | Implementation: hash id → embed → build point → upsert |
 | `Endpoints/DocumentEndpoints.cs` | `POST /documents` and `POST /documents/batch` endpoints |
 
 | Changed file | What changed |
 |-------------|-------------|
-| `Program.cs` | Added OpenAI config, `IEmbeddingGenerator<string, Embedding<float>>`, `IEmbeddingService`, `IDocumentIndexer`, `MapDocumentEndpoints()` (includes batch) |
-| `Qdrant.Demo.Api.csproj` | Added `Microsoft.Extensions.AI.OpenAI` and `Microsoft.Extensions.AI` NuGet packages |
-| `appsettings.json` | Added `OpenAI.EmbeddingModel` |
+| `Program.cs` | Added Azure OpenAI config, `IEmbeddingGenerator<string, Embedding<float>>`, `IEmbeddingService`, `IDocumentIndexer`, `MapDocumentEndpoints()` (includes batch) |
+| `Qdrant.Demo.Api.csproj` | Added `Azure.AI.OpenAI`, `Microsoft.Extensions.AI.OpenAI` and `Microsoft.Extensions.AI` NuGet packages |
+| `appsettings.json` | Added `AzureOpenAI.EmbeddingModel` |
 | `docker-compose.yml` | Unchanged — Qdrant only |
 
 ### Code walkthrough
@@ -123,7 +123,7 @@ Same input → same GUID, every time. This is what makes upserts idempotent.
 
 #### Generating embeddings — [`EmbeddingService.cs`](src/Qdrant.Demo.Api/Services/EmbeddingService.cs)
 
-The embedding service is a thin wrapper around the Microsoft.Extensions.AI `IEmbeddingGenerator` abstraction. It sends a single text to OpenAI and returns the resulting 1536-float vector:
+The embedding service is a thin wrapper around the Microsoft.Extensions.AI `IEmbeddingGenerator` abstraction. It sends a single text to Azure OpenAI and returns the resulting 1536-float vector:
 
 ```csharp
 public sealed class EmbeddingService(
@@ -216,18 +216,20 @@ app.MapPost("/documents/batch", async (
 
 ---
 
-## Step 1 — Set your OpenAI API key
+## Step 1 — Set your Azure OpenAI environment variables
 
-This module introduces OpenAI for embeddings. Set your API key as an environment variable:
+This module introduces Azure OpenAI for embeddings. Set your endpoint and API key as environment variables:
 
 ```powershell
 # PowerShell
-$env:OPENAI_API_KEY = "sk-..."
+$env:AZURE_OPENAI_ENDPOINT = "https://your-resource.openai.azure.com"
+$env:AZURE_OPENAI_API_KEY = "your-azure-openai-api-key"
 ```
 
 ```bash
 # bash / zsh
-export OPENAI_API_KEY="sk-..."
+export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
+export AZURE_OPENAI_API_KEY="your-azure-openai-api-key"
 ```
 
 ## Step 2 — Start Qdrant and run the API

@@ -325,14 +325,15 @@ find . -type d \( -name bin -o -name obj \) -exec rm -rf {} +
 ```powershell
 # PowerShell
 Remove-Item Env:ASPNETCORE_URLS -ErrorAction SilentlyContinue
-Remove-Item Env:OPENAI_API_KEY -ErrorAction SilentlyContinue
+Remove-Item Env:AZURE_OPENAI_ENDPOINT -ErrorAction SilentlyContinue
+Remove-Item Env:AZURE_OPENAI_API_KEY -ErrorAction SilentlyContinue
 Remove-Item Env:CHUNKING_MAX_SIZE -ErrorAction SilentlyContinue
 Remove-Item Env:CHUNKING_OVERLAP -ErrorAction SilentlyContinue
 ```
 
 ```bash
 # Linux/macOS
-unset ASPNETCORE_URLS OPENAI_API_KEY CHUNKING_MAX_SIZE CHUNKING_OVERLAP
+unset ASPNETCORE_URLS AZURE_OPENAI_ENDPOINT AZURE_OPENAI_API_KEY CHUNKING_MAX_SIZE CHUNKING_OVERLAP
 ```
 
 5. **Revert NuGet source changes** — only if you modified your NuGet sources in [Module 00](../module-00/README.md#-troubleshooting):

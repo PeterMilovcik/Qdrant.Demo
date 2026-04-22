@@ -27,11 +27,11 @@ By the end of this module you will have:
 
 ```mermaid
 flowchart LR
-    T["Documents + metadata"] -->|embed| EMB["OpenAI Embeddings"]
+    T["Documents + metadata"] -->|embed| EMB["Azure OpenAI Embeddings"]
     EMB -->|vectors| QD[("Qdrant")]
     UQ["User Query"] -->|embed| EMB
     EMB -->|search| QD
-    QD -->|top results| LLM["OpenAI Chat"]
+    QD -->|top results| LLM["Azure OpenAI Chat"]
     UQ -.->|question| LLM
     LLM --> A["Grounded Answer"]
 ```
@@ -200,7 +200,7 @@ The `IChatClient` abstraction (from Microsoft.Extensions.AI) keeps the endpoint 
 
 ## Step 1 — Start Qdrant and run the API
 
-This module introduces the chat LLM (`gpt-4o-mini`). Make sure your `OPENAI_API_KEY` environment variable is set (see [Module 1](../module-01/README.md#step-1--set-your-openai-api-key)).
+This module introduces the chat LLM (`gpt-4o-mini`). Make sure your `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_API_KEY` environment variables are set (see [Module 1](../module-01/README.md#step-1--set-your-azure-openai-environment-variables)).
 
 ```bash
 cd module-03
@@ -425,7 +425,7 @@ It lets callers customize the LLM's persona without changing server code — e.g
 <details>
 <summary>What role does the <code>IChatClient</code> abstraction play?</summary>
 
-It decouples the chat endpoint from any specific LLM provider (OpenAI, Azure OpenAI, etc.). The endpoint depends on the interface, making it easy to swap providers or mock during testing.
+It decouples the chat endpoint from any specific LLM provider (Azure OpenAI, OpenAI, etc.). The endpoint depends on the interface, making it easy to swap providers or mock during testing.
 
 </details>
 

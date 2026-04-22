@@ -2,7 +2,7 @@
 theme: default
 title: "Qdrant.Demo — RAG Workshop"
 info: |
-  A hands-on .NET 10 + Qdrant + OpenAI workshop.
+  A hands-on .NET 10 + Qdrant + Azure OpenAI workshop.
   Build a complete Retrieval-Augmented Generation solution from scratch.
 highlighter: shiki
 drawings:
@@ -14,7 +14,7 @@ colorSchema: auto
 
 # RAG Workshop
 
-## .NET 10 + Qdrant + OpenAI
+## .NET 10 + Qdrant + Azure OpenAI
 
 Build a complete **Retrieval-Augmented Generation** solution from scratch
 
@@ -62,11 +62,11 @@ Build a complete **Retrieval-Augmented Generation** solution from scratch
 
 ```mermaid {scale: 0.7}
 flowchart LR
-    T["Documents + metadata"] -->|embed| EMB["OpenAI Embeddings"]
+    T["Documents + metadata"] -->|embed| EMB["Azure OpenAI Embeddings"]
     EMB -->|vectors| QD[("Qdrant")]
     UQ["User Query"] -->|embed| EMB
     EMB -->|search| QD
-    QD -->|top results| LLM["OpenAI Chat"]
+    QD -->|top results| LLM["Azure OpenAI Chat"]
     UQ -.->|question| LLM
     LLM --> A["Grounded Answer"]
 ```
@@ -104,7 +104,7 @@ flowchart LR
 |------|---------|-----|
 | Docker Desktop | 4.x+ | Runs the Qdrant vector database |
 | .NET 10 SDK | 10.0+ | Build & run the API locally |
-| OpenAI API key | — | Embeddings + chat |
+| Azure OpenAI resource | — | Embeddings + chat |
 | `curl` or Swagger | — | Test the endpoints |
 
 <br>
@@ -135,8 +135,8 @@ dotnet --version
 |-----------|------|
 | **Qdrant** (Docker) | Open-source vector database — stores embeddings + metadata |
 | **.NET 10 Minimal API** | Exposes indexing, search, and chat endpoints |
-| **OpenAI Embeddings** | `text-embedding-3-small` — 1536 dimensions |
-| **OpenAI Chat** | `gpt-4o-mini` — generates grounded answers |
+| **Azure OpenAI Embeddings** | `text-embedding-3-small` — 1536 dimensions |
+| **Azure OpenAI Chat** | `gpt-4o-mini` — generates grounded answers |
 | **Docker Compose** | Runs Qdrant in a container |
 
 Each module folder (`module-XX/`) is **self-contained** — its own `README.md`, solution, source, and tests.
@@ -301,7 +301,7 @@ layout: section
 # Module 1
 ## Index
 
-~25 min · Requires OpenAI API key
+~25 min · Requires Azure OpenAI resource
 
 <!-- Now we add embeddings. This is where the magic starts — turning text into vectors. -->
 
@@ -409,11 +409,11 @@ public sealed class EmbeddingService(
 
 <br>
 
-- Depends on the `IEmbeddingGenerator` **interface** (not the OpenAI SDK directly)
+- Depends on the `IEmbeddingGenerator` **interface** (not the Azure OpenAI SDK directly)
 - Easy to mock in unit tests
 - One text in → one 1536-float vector out
 
-<!-- The abstraction is important. We program against IEmbeddingGenerator, not OpenAI. We could swap in a local model and nothing else changes. -->
+<!-- The abstraction is important. We program against IEmbeddingGenerator, not Azure OpenAI. We could swap in a local model and nothing else changes. -->
 
 ---
 
@@ -550,7 +550,8 @@ public record DocumentUpsertResponse(
 # Module 1 — Program.cs (DI Setup)
 
 ```csharp {all|1-1|3-5|7-8|9-15|17-18|all}
-var openAi = new OpenAIClient(openAiApiKey);
+var openAi = new AzureOpenAIClient(
+    new Uri(azureEndpoint), new ApiKeyCredential(azureApiKey));
 
 // Embedding generator
 builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
@@ -570,19 +571,20 @@ builder.Services.AddSingleton<IDocumentIndexer>(sp =>
 app.MapDocumentEndpoints();
 ```
 
-- `AsIEmbeddingGenerator()` adapts the OpenAI SDK to the `Microsoft.Extensions.AI` interface
+- `AsIEmbeddingGenerator()` adapts the Azure OpenAI SDK to the `Microsoft.Extensions.AI` interface
 - The indexer is registered with a factory to inject the collection name
 
-<!-- Notice the adapter pattern: AsIEmbeddingGenerator() bridges the OpenAI SDK to the M.E.AI abstraction. -->
+<!-- Notice the adapter pattern: AsIEmbeddingGenerator() bridges the Azure OpenAI SDK to the M.E.AI abstraction. -->
 
 ---
 
 # Module 1 — Try It
 
-### 1. Set your OpenAI API key
+### 1. Set your Azure OpenAI environment variables
 
 ```powershell
-$env:OPENAI_API_KEY = "sk-..."
+$env:AZURE_OPENAI_ENDPOINT = "https://your-resource.openai.azure.com"
+$env:AZURE_OPENAI_API_KEY = "your-azure-openai-api-key"
 ```
 
 ### 2. Start & run
@@ -1010,7 +1012,7 @@ flowchart LR
     E --> S["Search Qdrant"]
     S --> D["Top-K documents"]
     D --> CTX["Assemble context"]
-    SP["System prompt"] --> LLM["OpenAI gpt-4o-mini"]
+    SP["System prompt"] --> LLM["Azure OpenAI gpt-4o-mini"]
     CTX --> LLM
     Q --> LLM
     LLM --> A["Answer + Sources"]
@@ -1751,11 +1753,11 @@ You've built a full RAG solution from scratch.
 
 ```mermaid {scale: 0.65}
 flowchart LR
-    T["Documents + metadata"] -->|embed| EMB["OpenAI Embeddings"]
+    T["Documents + metadata"] -->|embed| EMB["Azure OpenAI Embeddings"]
     EMB -->|vectors| QD[("Qdrant")]
     UQ["User Query"] -->|embed| EMB
     EMB -->|search| QD
-    QD -->|top results| LLM["OpenAI Chat"]
+    QD -->|top results| LLM["Azure OpenAI Chat"]
     UQ -.->|question| LLM
     LLM --> A["Grounded Answer"]
 ```
@@ -1768,8 +1770,8 @@ flowchart LR
 |-----------|-----------|
 | Vector database | Qdrant (Docker) |
 | API framework | .NET 10 Minimal API |
-| Embeddings | OpenAI `text-embedding-3-small` (1536 dim) |
-| Chat | OpenAI `gpt-4o-mini` |
+| Embeddings | Azure OpenAI `text-embedding-3-small` (1536 dim) |
+| Chat | Azure OpenAI `gpt-4o-mini` |
 | Frontend | Vanilla JS + Pico.css |
 
 <!-- Full circle. The same diagram from the beginning, but now you understand every piece of it. -->
